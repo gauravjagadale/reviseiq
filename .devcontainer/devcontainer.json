@@ -15,7 +15,7 @@
       }
     }
   },
-  "postCreateCommand": "./gradlew --version && ./gradlew :app:assembleDebug",
+  "postCreateCommand": "if [ -n \"$GEMINI_API_KEY\" ]; then echo \"GEMINI_API_KEY=$GEMINI_API_KEY\" > .env; fi && ./gradlew --version && ./gradlew :app:assembleDebug",
   "mounts": [
     "source=reviseiq-gradle-cache,target=/home/vscode/.gradle,type=volume"
   ]
