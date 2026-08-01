@@ -15,7 +15,6 @@
 .cxx
 local.properties
 .env
-.env.*
 debug.keystore
 *.jks
 *.keystore
