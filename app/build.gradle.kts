@@ -1,21 +1,32 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
-val debugKeystoreFile = file("${rootDir}/debug.keystore")
-if (!debugKeystoreFile.exists()) {
-  val keytool = ProcessBuilder(
-    "keytool",
-    "-genkeypair",
-    "-v",
-    "-keystore", debugKeystoreFile.absolutePath,
-    "-storepass", "android",
-    "-alias", "androiddebugkey",
-    "-keypass", "android",
-    "-keyalg", "RSA",
-    "-keysize", "2048",
-    "-validity", "10000",
-    "-dname", "CN=Android Debug,O=Android,C=US"
-  ).inheritIO().start()
-  check(keytool.waitFor() == 0) { "keytool failed to generate debug keystore" }
+val debugKeystorePath = rootDir.resolve("debug.keystore").absolutePath
+
+tasks.register("generateDebugKeystore") {
+  val path: String = debugKeystorePath
+  doLast {
+    val keystore = File(path)
+    if (!keystore.exists()) {
+      val keytool = ProcessBuilder(
+        "keytool",
+        "-genkeypair",
+        "-v",
+        "-keystore", keystore.absolutePath,
+        "-storepass", "android",
+        "-alias", "androiddebugkey",
+        "-keypass", "android",
+        "-keyalg", "RSA",
+        "-keysize", "2048",
+        "-validity", "10000",
+        "-dname", "CN=Android Debug,O=Android,C=US"
+      ).inheritIO().start()
+      check(keytool.waitFor() == 0) { "keytool failed to generate debug keystore" }
+    }
+  }
+}
+
+tasks.named("preBuild").configure {
+  dependsOn("generateDebugKeystore")
 }
 
 plugins {
@@ -50,7 +61,7 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      storeFile = debugKeystoreFile
+      storeFile = file(debugKeystorePath)
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"
@@ -150,3 +161,5 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+
