@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Flashcard Layer -->
+    <path
+        android:fillColor="#818CF8"
+        android:pathData="M30,34 L78,34 C81.3,34 84,36.7 84,40 L84,72 C84,75.3 81.3,78 78,78 L30,78 C26.7,78 24,75.3 24,72 L24,40 C24,36.7 26.7,34 30,34 Z" />
+    <!-- Overlaid Angled Card -->
+    <path
+        android:fillColor="#A7F3D0"
+        android:pathData="M34,28 L82,28 C85.3,28 88,30.7 88,34 L88,66 C88,69.3 85.3,72 82,72 L34,72 C30.7,72 28,69.3 28,66 L28,34 C28,30.7 30.7,28 34,28 Z" />
+    <!-- Core Accent Card -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,38 L74,38 C77.3,38 80,40.7 80,44 L80,76 C80,79.3 77.3,82 74,82 L26,82 C22.7,82 20,79.3 20,76 L20,44 C20,40.7 22.7,38 26,38 Z" />
+    <!-- Brain / Lightning Revision Symbol -->
+    <path
+        android:fillColor="#4F46E5"
+        android:pathData="M52,46 L40,62 L50,62 L48,74 L60,58 L50,58 Z" />
+    <!-- Fire Flame Streak Accent -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M66,48 C66,48 70,52 70,56 C70,58.2 68.2,60 66,60 C63.8,60 62,58.2 62,56 C62,53 66,48 66,48 Z" />
+</vector>

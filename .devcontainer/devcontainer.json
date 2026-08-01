@@ -1,0 +1,22 @@
+{
+  "name": "ReviseIQ Android",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "fwcd.kotlin"
+      ],
+      "settings": {
+        "java.configuration.updateBuildConfiguration": "automatic"
+      }
+    }
+  },
+  "postCreateCommand": "./gradlew --version && ./gradlew :app:assembleDebug",
+  "mounts": [
+    "source=reviseiq-gradle-cache,target=/home/vscode/.gradle,type=volume"
+  ]
+}

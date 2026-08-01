@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">ReviseIQ</string>
+    <string name="shortcut_add_card_short">Add Flashcard</string>
+    <string name="shortcut_add_card_long">Quickly Create New Flashcard</string>
+</resources>

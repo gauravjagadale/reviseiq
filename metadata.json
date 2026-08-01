@@ -1,0 +1,7 @@
+{
+  "name": "ReviseIQ",
+  "description": "Personal spaced revision app with flashcards, quizzes, calendar scheduling, study streaks, and comprehensive stats.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
