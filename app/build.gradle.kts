@@ -1,5 +1,23 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 
+val debugKeystoreFile = file("${rootDir}/debug.keystore")
+if (!debugKeystoreFile.exists()) {
+  val keytool = ProcessBuilder(
+    "keytool",
+    "-genkeypair",
+    "-v",
+    "-keystore", debugKeystoreFile.absolutePath,
+    "-storepass", "android",
+    "-alias", "androiddebugkey",
+    "-keypass", "android",
+    "-keyalg", "RSA",
+    "-keysize", "2048",
+    "-validity", "10000",
+    "-dname", "CN=Android Debug,O=Android,C=US"
+  ).inheritIO().start()
+  check(keytool.waitFor() == 0) { "keytool failed to generate debug keystore" }
+}
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -32,25 +50,7 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      val debugKeystore = file("${rootDir}/debug.keystore")
-      if (!debugKeystore.exists()) {
-        exec {
-          commandLine(
-            "keytool",
-            "-genkeypair",
-            "-v",
-            "-keystore", debugKeystore.absolutePath,
-            "-storepass", "android",
-            "-alias", "androiddebugkey",
-            "-keypass", "android",
-            "-keyalg", "RSA",
-            "-keysize", "2048",
-            "-validity", "10000",
-            "-dname", "CN=Android Debug,O=Android,C=US"
-          )
-        }
-      }
-      storeFile = debugKeystore
+      storeFile = debugKeystoreFile
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"
