@@ -8,12 +8,20 @@
 -- cross-device sync. If you previously ran an older version of this
 -- file, the DROP TABLE statements below will recreate the affected
 -- tables (destructive) so every device gets the corrected shape.
+--
+-- IMPORTANT: camelCase columns (colorHex, boxLevel, ...) are wrapped in
+-- double quotes. Postgres folds unquoted identifiers to lowercase, which
+-- would make PostgREST reject the app's exact-case column names. Keep the
+-- quotes when editing. Existing deployments that were created from the
+-- unquoted version must run fix-deployed-schema.sql first.
 
 drop table if exists public.decks cascade;
 drop table if exists public.flashcards cascade;
 drop table if exists public.study_logs cascade;
 drop table if exists public.quiz_results cascade;
 drop table if exists public.folders cascade;
+drop table if exists public.daily_streaks cascade;
+drop table if exists public.user_settings cascade;
 
 -- Helper: stamp every row with the logged-in user id
 create or replace function public.set_user_id()
@@ -28,8 +36,8 @@ create table if not exists public.folders (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   uuid text not null,
   name text not null,
-  colorHex text not null default '#6366F1',
-  createdAt bigint not null default 0,
+  "colorHex" text not null default '#6366F1',
+  "createdAt" bigint not null default 0,
   updated_at bigint not null default 0,
   is_deleted boolean not null default false,
   primary key (user_id, uuid)
@@ -48,8 +56,8 @@ create table if not exists public.decks (
   title text not null,
   description text not null default '',
   category text not null default '',
-  colorHex text not null default '#6366F1',
-  createdAt bigint not null default 0,
+  "colorHex" text not null default '#6366F1',
+  "createdAt" bigint not null default 0,
   folder_uuid text not null default '',
   updated_at bigint not null default 0,
   is_deleted boolean not null default false,
@@ -70,13 +78,13 @@ create table if not exists public.flashcards (
   front text not null,
   back text not null,
   hint text not null default '',
-  boxLevel integer not null default 1,
-  intervalDays integer not null default 1,
+  "boxLevel" integer not null default 1,
+  "intervalDays" integer not null default 1,
   repetitions integer not null default 0,
-  easeFactor double precision not null default 2.5,
-  lastReviewed bigint,
-  nextReviewDate bigint not null default 0,
-  lastRating text not null default '',
+  "easeFactor" double precision not null default 2.5,
+  "lastReviewed" bigint,
+  "nextReviewDate" bigint not null default 0,
+  "lastRating" text not null default '',
   updated_at bigint not null default 0,
   is_deleted boolean not null default false,
   primary key (user_id, uuid)
@@ -96,7 +104,7 @@ create table if not exists public.study_logs (
   deck_uuid text not null default '',
   timestamp bigint not null default 0,
   rating text not null default '',
-  reviewDurationSeconds integer not null default 5,
+  "reviewDurationSeconds" integer not null default 5,
   updated_at bigint not null default 0,
   is_deleted boolean not null default false,
   primary key (user_id, uuid)
@@ -110,17 +118,17 @@ create policy "study_logs_all" on public.study_logs for all
 
 -- ---------- daily_streaks ----------
 create table if not exists public.daily_streaks (
-  dateString text not null,
+  "dateString" text not null,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   uuid text not null,
-  cardsReviewed integer not null default 0,
-  quizzesCompleted integer not null default 0,
-  studyDurationMinutes integer not null default 0,
-  goalTargetCards integer not null default 20,
-  targetMet boolean not null default false,
+  "cardsReviewed" integer not null default 0,
+  "quizzesCompleted" integer not null default 0,
+  "studyDurationMinutes" integer not null default 0,
+  "goalTargetCards" integer not null default 20,
+  "targetMet" boolean not null default false,
   updated_at bigint not null default 0,
   is_deleted boolean not null default false,
-  primary key (user_id, dateString)
+  primary key (user_id, "dateString")
 );
 create unique index if not exists daily_streaks_uuid_uidx on public.daily_streaks (user_id, uuid);
 create index if not exists daily_streaks_updated_idx on public.daily_streaks (user_id, updated_at);
@@ -135,11 +143,11 @@ create table if not exists public.quiz_results (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   uuid text not null,
   deck_uuid text not null default '',
-  deckTitle text not null default '',
-  totalQuestions integer not null default 0,
-  correctAnswers integer not null default 0,
-  scorePercentage integer not null default 0,
-  durationSeconds integer not null default 0,
+  "deckTitle" text not null default '',
+  "totalQuestions" integer not null default 0,
+  "correctAnswers" integer not null default 0,
+  "scorePercentage" integer not null default 0,
+  "durationSeconds" integer not null default 0,
   timestamp bigint not null default 0,
   updated_at bigint not null default 0,
   is_deleted boolean not null default false,
