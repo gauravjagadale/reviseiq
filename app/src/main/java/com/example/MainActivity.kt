@@ -365,9 +365,6 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onNavigateToDecks = {
                                             navController.navigate(NavRoutes.Decks.route)
-                                        },
-                                        onOpenAiGenerator = {
-                                            navController.navigate(NavRoutes.Decks.route)
                                         }
                                     )
 

@@ -1,7 +1,13 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,20 +33,23 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Quiz
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -47,26 +57,34 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.db.DailyStreakEntity
+import com.example.data.db.DeckEntity
+import com.example.data.db.FlashcardEntity
+import com.example.ui.DailyTask
 import com.example.ui.ReviseViewModel
-import com.example.ui.components.DataExportCard
-import com.example.ui.components.GlobalSearchBar
-import com.example.ui.components.PomodoroTimerCard
-import com.example.ui.components.StreakBanner
-import com.example.ui.components.StudyReminderCard
+import com.example.ui.components.AiFlashcardGeneratorDialog
+import com.example.ui.components.GlobalSearchContent
+import com.example.ui.components.StreakShieldBottomSheet
 import com.example.ui.components.StudyStreakTracker
-import com.example.ui.components.WeeklyGoalProgressCard
-import com.example.ui.components.SoundSwitcherChip
 import com.example.ui.components.ThemeSwitcherChip
-import com.example.ui.theme.CyanAI
+import com.example.ui.components.WeeklyGoalContent
+import com.example.ui.components.WeeklyGoalSettingModal
+import com.example.ui.theme.AmberStreak
 import com.example.ui.theme.EmeraldMastery
 import com.example.ui.theme.IndigoPrimary
-import com.example.ui.theme.VioletSecondary
+import com.example.ui.theme.RoseAlert
 
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import com.example.ui.components.StreakShieldBottomSheet
+/** A deck with its due cards summarized for the dashboard's compact tiles. */
+data class DueDeckSummary(
+    val deck: DeckEntity,
+    val dueCount: Int,
+    val againCount: Int,
+    val hardCount: Int,
+    val goodCount: Int,
+    val easyCount: Int,
+    val unratedCount: Int,
+    val earliestDue: Long
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,29 +93,130 @@ fun DashboardScreen(
     onNavigateToReview: (Long) -> Unit,
     onNavigateToQuiz: (Long) -> Unit,
     onNavigateToCalendar: () -> Unit,
-    onNavigateToDecks: () -> Unit,
-    onOpenAiGenerator: () -> Unit
+    onNavigateToDecks: () -> Unit
 ) {
-    val streakCount by viewModel.currentStreakCount.collectAsState()
     val dueCards by viewModel.dueCards.collectAsState()
     val decks by viewModel.decks.collectAsState()
+    val allCards by viewModel.allCards.collectAsState()
     val dailyStreaks by viewModel.dailyStreaks.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val streakShieldsCount by viewModel.streakShieldsCount.collectAsState()
+    val dailyTasks by viewModel.dailyTasks.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val weeklyGoalHours by viewModel.weeklyStudyGoalHours.collectAsState()
+    val currentWeeklyHours by viewModel.weeklyStudyHoursProgress.collectAsState()
+    val folders by viewModel.folders.collectAsState()
+    val aiState by viewModel.aiState.collectAsState()
 
     var showStreakShieldSheet by remember { mutableStateOf(false) }
+    var showWeeklyGoalModal by remember { mutableStateOf(false) }
+    var showAiGeneratorDialog by remember { mutableStateOf(false) }
 
-    val todayStreak = dailyStreaks.find { it.dateString == viewModel.repositoryCurrentDateString() }
-    val todayReviewed = todayStreak?.cardsReviewed ?: 0
+    DashboardContent(
+        decks = decks,
+        dueCards = dueCards,
+        allCards = allCards,
+        dailyStreaks = dailyStreaks,
+        dailyTasks = dailyTasks,
+        searchQuery = searchQuery,
+        weeklyGoalHours = weeklyGoalHours,
+        currentWeeklyHours = currentWeeklyHours,
+        isDarkMode = isDarkMode,
+        streakShieldsCount = streakShieldsCount,
+        onSearchQueryChange = viewModel::setSearchQuery,
+        onToggleTheme = viewModel::toggleDarkMode,
+        onEditWeeklyGoal = { showWeeklyGoalModal = true },
+        onQuickLogMinutes = viewModel::addQuickStudyMinutes,
+        onNavigateToReview = onNavigateToReview,
+        onNavigateToQuiz = onNavigateToQuiz,
+        onNavigateToCalendar = onNavigateToCalendar,
+        onNavigateToDecks = onNavigateToDecks,
+        onOpenAiGenerator = { showAiGeneratorDialog = true },
+        onAddTask = viewModel::addDailyTask,
+        onRemoveTask = viewModel::removeDailyTask,
+        onToggleTask = viewModel::toggleDailyTask,
+        onOpenShieldModal = { showStreakShieldSheet = true }
+    )
+
+    if (showStreakShieldSheet) {
+        StreakShieldBottomSheet(
+            viewModel = viewModel,
+            onDismiss = { showStreakShieldSheet = false }
+        )
+    }
+
+    if (showWeeklyGoalModal) {
+        WeeklyGoalSettingModal(
+            viewModel = viewModel,
+            onDismissRequest = { showWeeklyGoalModal = false }
+        )
+    }
+
+    if (showAiGeneratorDialog) {
+        AiFlashcardGeneratorDialog(
+            viewModel = viewModel,
+            decks = decks,
+            folders = folders,
+            aiState = aiState,
+            onDismiss = { showAiGeneratorDialog = false }
+        )
+    }
+}
+
+@Composable
+fun DashboardContent(
+    decks: List<DeckEntity>,
+    dueCards: List<FlashcardEntity>,
+    allCards: List<FlashcardEntity>,
+    dailyStreaks: List<DailyStreakEntity>,
+    dailyTasks: List<DailyTask>,
+    searchQuery: String,
+    weeklyGoalHours: Float,
+    currentWeeklyHours: Float,
+    isDarkMode: Boolean,
+    streakShieldsCount: Int,
+    onSearchQueryChange: (String) -> Unit,
+    onToggleTheme: () -> Unit,
+    onEditWeeklyGoal: () -> Unit,
+    onQuickLogMinutes: (Int) -> Unit,
+    onNavigateToReview: (Long) -> Unit,
+    onNavigateToQuiz: (Long) -> Unit,
+    onNavigateToCalendar: () -> Unit,
+    onNavigateToDecks: () -> Unit,
+    onOpenAiGenerator: () -> Unit,
+    onAddTask: (String) -> Unit,
+    onRemoveTask: (String) -> Unit,
+    onToggleTask: (String) -> Unit,
+    onOpenShieldModal: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Compact per-deck summary: group due cards by deck, tag the last review
+    // ratings (Again/Hard/Good/Easy/New) and sort by the earliest due card.
+    val dueDecks = remember(decks, dueCards) {
+        dueCards.groupBy { it.deckId }
+            .mapNotNull { (deckId, cards) ->
+                val deck = decks.firstOrNull { it.id == deckId } ?: return@mapNotNull null
+                DueDeckSummary(
+                    deck = deck,
+                    dueCount = cards.size,
+                    againCount = cards.count { it.lastRating == "AGAIN" },
+                    hardCount = cards.count { it.lastRating == "HARD" },
+                    goodCount = cards.count { it.lastRating == "GOOD" },
+                    easyCount = cards.count { it.lastRating == "EASY" },
+                    unratedCount = cards.count { it.lastRating.isBlank() },
+                    earliestDue = cards.minOf { it.nextReviewDate }
+                )
+            }
+            .sortedBy { it.earliestDue }
+    }
 
     LazyColumn(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // App Header Title
         item {
             Column {
                 Row(
@@ -123,11 +242,9 @@ fun DashboardScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        SoundSwitcherChip()
-
                         ThemeSwitcherChip(
                             isDarkMode = isDarkMode,
-                            onToggleTheme = { viewModel.toggleDarkMode() }
+                            onToggleTheme = onToggleTheme
                         )
 
                         Box(
@@ -149,125 +266,38 @@ fun DashboardScreen(
             }
         }
 
-        // Global Search Bar Component
         item {
-            GlobalSearchBar(
-                viewModel = viewModel,
+            GlobalSearchContent(
+                searchQuery = searchQuery,
+                allCards = allCards,
+                decks = decks,
+                onQueryChange = onSearchQueryChange,
+                onClearQuery = { onSearchQueryChange("") },
                 onNavigateToReview = onNavigateToReview
             )
         }
 
-        // Weekly Study Hours Goal Progress Card
         item {
-            WeeklyGoalProgressCard(viewModel = viewModel)
-        }
-
-        // Pomodoro Focus Timer Component
-        item {
-            PomodoroTimerCard(viewModel = viewModel)
-        }
-
-        // Data Export & Backup Component
-        item {
-            DataExportCard(viewModel = viewModel)
-        }
-
-        // Study Streak Tracker Component
-        item {
-            StudyStreakTracker(
-                dailyStreaks = dailyStreaks,
-                targetDailyGoal = 20,
-                streakShieldsCount = streakShieldsCount,
-                onLogStudyActivity = { cardsCount ->
-                    viewModel.logQuickStudyActivity(cardsCount)
-                },
-                onOpenShieldModal = {
-                    showStreakShieldSheet = true
-                }
+            WeeklyGoalContent(
+                weeklyGoalHours = weeklyGoalHours,
+                currentWeeklyHours = currentWeeklyHours,
+                onEditGoal = onEditWeeklyGoal,
+                onQuickLogMinutes = onQuickLogMinutes
             )
         }
 
-        // Push Notification Study Reminder Card
         item {
-            StudyReminderCard(viewModel = viewModel)
+            StudyStreakTracker(
+                dailyStreaks = dailyStreaks,
+                dailyTasks = dailyTasks,
+                streakShieldsCount = streakShieldsCount,
+                onAddTask = onAddTask,
+                onRemoveTask = onRemoveTask,
+                onToggleTask = onToggleTask,
+                onOpenShieldModal = onOpenShieldModal
+            )
         }
 
-        // Quick Actions Grid
-        item {
-            Column {
-                Text(
-                    text = "Quick Actions",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    QuickActionTile(
-                        title = "Review Due",
-                        subtitle = "${dueCards.size} cards ready",
-                        icon = Icons.Default.PlayArrow,
-                        gradientColors = listOf(MaterialTheme.colorScheme.primary, Color(0xFF233E2E)),
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            if (dueCards.isNotEmpty()) {
-                                onNavigateToReview(dueCards.first().deckId)
-                            } else if (decks.isNotEmpty()) {
-                                onNavigateToReview(decks.first().id)
-                            } else {
-                                onNavigateToDecks()
-                            }
-                        }
-                    )
-
-                    QuickActionTile(
-                        title = "AI Deck Maker",
-                        subtitle = "Generate from topic",
-                        icon = Icons.Default.AutoAwesome,
-                        gradientColors = listOf(MaterialTheme.colorScheme.secondary, Color(0xFF883E28)),
-                        modifier = Modifier.weight(1f),
-                        onClick = onOpenAiGenerator
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    QuickActionTile(
-                        title = "Practice Quiz",
-                        subtitle = "Test your recall",
-                        icon = Icons.Default.Quiz,
-                        gradientColors = listOf(EmeraldMastery, Color(0xFF1B4332)),
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            if (decks.isNotEmpty()) {
-                                onNavigateToQuiz(decks.first().id)
-                            } else {
-                                onNavigateToDecks()
-                            }
-                        }
-                    )
-
-                    QuickActionTile(
-                        title = "Revision Calendar",
-                        subtitle = "Schedule & dates",
-                        icon = Icons.Default.CalendarMonth,
-                        gradientColors = listOf(MaterialTheme.colorScheme.tertiary, Color(0xFF8C5202)),
-                        modifier = Modifier.weight(1f),
-                        onClick = onNavigateToCalendar
-                    )
-                }
-            }
-        }
-
-        // Due Today Queue Section
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -328,11 +358,15 @@ fun DashboardScreen(
                 }
             }
         } else {
-            items(dueCards.take(4)) { card ->
+            items(dueDecks) { summary ->
+                val deckDotColor = runCatching {
+                    Color(android.graphics.Color.parseColor(summary.deck.colorHex))
+                }.getOrDefault(IndigoPrimary)
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onNavigateToReview(card.deckId) },
+                        .clickable { onNavigateToReview(summary.deck.id) },
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -340,38 +374,157 @@ fun DashboardScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = card.front,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Box Level ${card.boxLevel} • Interval ${card.intervalDays}d",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(deckDotColor)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = summary.deck.title,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (summary.againCount > 0) {
+                                    RatingChip(label = "Again", count = summary.againCount, color = RoseAlert)
+                                }
+                                if (summary.hardCount > 0) {
+                                    RatingChip(label = "Hard", count = summary.hardCount, color = AmberStreak)
+                                }
+                                if (summary.goodCount > 0) {
+                                    RatingChip(label = "Good", count = summary.goodCount, color = IndigoPrimary)
+                                }
+                                if (summary.easyCount > 0) {
+                                    RatingChip(label = "Easy", count = summary.easyCount, color = EmeraldMastery)
+                                }
+                                if (summary.unratedCount > 0) {
+                                    RatingChip(
+                                        label = "New",
+                                        count = summary.unratedCount,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
 
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = "Review",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = RoseAlert.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, RoseAlert.copy(alpha = 0.4f))
+                            ) {
+                                Text(
+                                    text = "${summary.dueCount} due",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RoseAlert,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Review ${summary.deck.title}",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Decks Summary Row
+        item {
+            Column {
+                Text(
+                    text = "Quick Actions",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    QuickActionTile(
+                        title = "Review Cards",
+                        subtitle = if (dueCards.isNotEmpty()) "${dueCards.size} due now" else "All caught up",
+                        icon = Icons.Default.PlayArrow,
+                        gradientColors = listOf(MaterialTheme.colorScheme.primary, Color(0xFF233E2E)),
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            if (dueCards.isNotEmpty()) {
+                                onNavigateToReview(dueCards.first().deckId)
+                            } else if (decks.isNotEmpty()) {
+                                onNavigateToReview(decks.first().id)
+                            } else {
+                                onNavigateToDecks()
+                            }
+                        }
+                    )
+
+                    QuickActionTile(
+                        title = "AI Generate",
+                        subtitle = "Flashcards from topic",
+                        icon = Icons.Default.AutoAwesome,
+                        gradientColors = listOf(MaterialTheme.colorScheme.secondary, Color(0xFF883E28)),
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenAiGenerator
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    QuickActionTile(
+                        title = "Practice Quiz",
+                        subtitle = "Test your recall",
+                        icon = Icons.Default.Quiz,
+                        gradientColors = listOf(EmeraldMastery, Color(0xFF1B4332)),
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            if (decks.isNotEmpty()) {
+                                onNavigateToQuiz(decks.first().id)
+                            } else {
+                                onNavigateToDecks()
+                            }
+                        }
+                    )
+
+                    QuickActionTile(
+                        title = "Study Planner",
+                        subtitle = "Calendar & sessions",
+                        icon = Icons.Default.CalendarMonth,
+                        gradientColors = listOf(MaterialTheme.colorScheme.tertiary, Color(0xFF8C5202)),
+                        modifier = Modifier.weight(1f),
+                        onClick = onNavigateToCalendar
+                    )
+                }
+            }
+        }
+
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -460,19 +613,6 @@ fun DashboardScreen(
             }
         }
     }
-
-    if (showStreakShieldSheet) {
-        StreakShieldBottomSheet(
-            viewModel = viewModel,
-            onDismiss = { showStreakShieldSheet = false }
-        )
-    }
-}
-
-// Helper extension to access date string cleanly
-fun ReviseViewModel.repositoryCurrentDateString(): String {
-    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-    return sdf.format(java.util.Date())
 }
 
 @Composable
@@ -484,8 +624,21 @@ fun QuickActionTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val tileScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "tile_press_scale"
+    )
     Card(
-        modifier = modifier.clickable { onClick() },
+        modifier = modifier
+            .scale(tileScale)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -493,6 +646,7 @@ fun QuickActionTile(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 112.dp)
                 .background(Brush.linearGradient(gradientColors))
                 .padding(16.dp)
         ) {
@@ -517,5 +671,22 @@ fun QuickActionTile(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RatingChip(label: String, count: Int, color: Color) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = color.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.35f))
+    ) {
+        Text(
+            text = "$label ×$count",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+        )
     }
 }

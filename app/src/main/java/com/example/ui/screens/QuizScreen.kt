@@ -1,8 +1,13 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,13 +22,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
@@ -52,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.os.Build
@@ -61,6 +70,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import com.example.data.db.FlashcardEntity
 import com.example.ui.ReviseViewModel
+import com.example.ui.followUpAfterQuiz
 import com.example.ui.theme.EarthAlert
 import com.example.ui.theme.ForestMastery
 import com.example.ui.theme.ForestMasteryContainer
@@ -213,8 +223,7 @@ fun QuizScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                    .padding(16.dp)
             ) {
                 // Header
                 Column {
@@ -231,7 +240,10 @@ fun QuizScreen(
                             text = deck?.title ?: "Practice Quiz",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.weight(1f, fill = false),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -256,12 +268,23 @@ fun QuizScreen(
                                     .background(ForestMasteryContainer)
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
-                                Text(
-                                    text = "Score: $correctCount",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ForestMastery
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = ForestMastery,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "$correctCount / ${questions.size}",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ForestMastery
+                                    )
+                                }
                             }
                         }
                     }
@@ -292,7 +315,9 @@ fun QuizScreen(
                     }
 
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
                         shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -361,6 +386,42 @@ fun QuizScreen(
                                 }
                             }
 
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Follow-up window the review scheduler will book
+                            // when the results are saved.
+                            val followUp = followUpAfterQuiz(scorePct)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.EventNote,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Saving results schedules a follow-up in ${followUp.first} day" +
+                                            (if (followUp.first == 1) "" else "s"),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = followUp.second,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(24.dp))
 
                             Row(
@@ -411,38 +472,52 @@ fun QuizScreen(
                     }
                 } else {
                     // Active Question View
-                    Column {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    AnimatedContent(
+                        targetState = currentQuestionIdx,
+                        modifier = Modifier.weight(1f),
+                        transitionSpec = {
+                            (slideInHorizontally(initialOffsetX = { it / 4 }) + fadeIn()) togetherWith
+                                (slideOutHorizontally(targetOffsetX = { -it / 4 }) + fadeOut())
+                        },
+                        label = "quiz_question_transition"
+                    ) { questionIndex ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
                         ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Text(
-                                    text = "QUESTION ${currentQuestionIdx + 1} OF ${questions.size}",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = currentQuestion.card.front,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    lineHeight = 24.sp
-                                )
+                            val question = questions.getOrNull(questionIndex) ?: return@AnimatedContent
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(20.dp)) {
+                                    Text(
+                                        text = "QUESTION ${questionIndex + 1} OF ${questions.size}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = question.card.front,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        lineHeight = 24.sp
+                                    )
+                                }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                        // Options List
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            currentQuestion.options.forEachIndexed { idx, optionText ->
-                                val isSelected = selectedOptionIdx == idx
-                                val isCorrect = idx == currentQuestion.correctIndex
+                            // Options List
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                question.options.forEachIndexed { idx, optionText ->
+                                    val isSelected = selectedOptionIdx == idx
+                                    val isCorrect = idx == question.correctIndex
 
                                 val cardBg = when {
                                     selectedOptionIdx != null && isCorrect -> ForestMasteryContainer
@@ -515,6 +590,7 @@ fun QuizScreen(
                                 }
                             }
                         }
+                    }
                     }
 
                     // Bottom Navigation / Next Question Button
