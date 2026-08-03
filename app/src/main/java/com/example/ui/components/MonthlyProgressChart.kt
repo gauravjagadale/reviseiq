@@ -56,7 +56,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -256,6 +259,7 @@ fun MonthlyProgressChart(
                 val maxObserved = dataPoints.maxOf { maxOf(it.actualHours, it.goalHours) }
                 (maxOf(maxObserved, 3.0f) * 1.15f)
             }
+            val textMeasurer = rememberTextMeasurer()
 
             Box(
                 modifier = Modifier
@@ -459,6 +463,22 @@ fun MonthlyProgressChart(
                         if (i % labelInterval == 0 || i == dataPoints.size - 1) {
                             val x = paddingLeft + i * stepX
                             val label = dp.dateLabel
+                            val measured = textMeasurer.measure(
+                                text = label,
+                                style = TextStyle(fontSize = 9.sp, color = Color.Gray)
+                            )
+                            // Keep labels inside the plot area (first/last would overflow)
+                            val clampedX = x.coerceIn(
+                                paddingLeft + measured.size.width / 2f,
+                                width - paddingRight - measured.size.width / 2f
+                            )
+                            drawText(
+                                textLayoutResult = measured,
+                                topLeft = Offset(
+                                    clampedX - measured.size.width / 2f,
+                                    height - paddingBottom + 8f
+                                )
+                            )
                         }
                     }
                 }

@@ -64,6 +64,7 @@ import com.example.ui.ReviseViewModel
 import com.example.ui.theme.EmeraldMastery
 import com.example.ui.theme.IndigoPrimary
 import com.example.ui.theme.VioletSecondary
+import com.example.ui.theme.adaptiveMasteryAccent
 import java.util.Locale
 
 @Composable
@@ -172,6 +173,10 @@ fun StudyReminderCard(
                             ) {
                                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             } else {
+                                // Exact alarms need user approval on Android 12+;
+                                // the request takes the user to the system screen,
+                                // then the reminders are enabled as usual.
+                                StudyNotificationScheduler.requestExactAlarmPermission(context)
                                 viewModel.setRemindersEnabled(true, context)
                             }
                         } else {
@@ -233,7 +238,7 @@ fun StudyReminderCard(
                                 Text(
                                     text = "All calendar sessions completed for today! Reminder set for tomorrow.",
                                     fontSize = 12.sp,
-                                    color = EmeraldMastery
+                                    color = adaptiveMasteryAccent()
                                 )
                             }
                         }

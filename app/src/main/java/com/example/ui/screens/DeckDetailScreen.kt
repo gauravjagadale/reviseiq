@@ -50,8 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.ReviseViewModel
 import com.example.ui.components.DataExportCard
-import com.example.ui.theme.EmeraldMastery
-import com.example.ui.theme.IndigoPrimary
+import com.example.ui.theme.adaptiveMasteryAccent
+import com.example.ui.theme.adaptivePrimaryAccent
+import com.example.ui.theme.adaptiveStreakAccent
 
 @Composable
 fun DeckDetailScreen(
@@ -96,7 +97,7 @@ fun DeckDetailScreen(
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "${deck?.category} • ${cardsInDeck.size} flashcards",
+                        text = "${deck?.category ?: "General"} • ${cardsInDeck.size} flashcards",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -114,7 +115,7 @@ fun DeckDetailScreen(
                     onClick = { onNavigateToReview(deckId) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = adaptivePrimaryAccent()),
                     enabled = cardsInDeck.isNotEmpty()
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = "Start Review")
@@ -126,7 +127,7 @@ fun DeckDetailScreen(
                     onClick = { onNavigateToQuiz(deckId) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldMastery),
+                    colors = ButtonDefaults.buttonColors(containerColor = adaptiveMasteryAccent()),
                     enabled = cardsInDeck.isNotEmpty()
                 ) {
                     Icon(Icons.Default.Quiz, contentDescription = "Start Quiz")
@@ -187,7 +188,7 @@ fun DeckDetailScreen(
                                             Text(
                                                 text = "Hint: ${card.hint}",
                                                 fontSize = 12.sp,
-                                                color = Color(0xFFD97706)
+                                                color = adaptiveStreakAccent()
                                             )
                                         }
                                     }
@@ -212,28 +213,28 @@ fun DeckDetailScreen(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0x226366F1))
+                                            .background(adaptivePrimaryAccent().copy(alpha = 0.13f))
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
                                             text = "Leitner Box ${card.boxLevel}",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = IndigoPrimary
+                                            color = adaptivePrimaryAccent()
                                         )
                                     }
 
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0x2210B981))
+                                            .background(adaptiveMasteryAccent().copy(alpha = 0.13f))
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
                                             text = "Interval ${card.intervalDays}d",
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = EmeraldMastery
+                                            color = adaptiveMasteryAccent()
                                         )
                                     }
                                 }
@@ -247,8 +248,8 @@ fun DeckDetailScreen(
         // FAB to Add Card
         FloatingActionButton(
             onClick = { showAddCardDialog = true },
-            containerColor = IndigoPrimary,
-            contentColor = Color.White,
+            containerColor = adaptivePrimaryAccent(),
+            contentColor = MaterialTheme.colorScheme.onPrimary,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(20.dp)

@@ -66,7 +66,9 @@ fun Flashcard3DCard(
     val soundManager = remember(context) { SoundEffectManager(context) }
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
-    var showHint by remember { mutableStateOf(false) }
+    // Keyed on the card's content so the hint state resets when the card
+    // changes — otherwise a revealed hint leaks onto the next card.
+    var showHint by remember(frontText, backText) { mutableStateOf(false) }
 
     val rotation by animateFloatAsState(
         targetValue = if (isFlipped) 180f else 0f,

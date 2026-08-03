@@ -5,16 +5,12 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.util.UUID
 
-@Entity(tableName = "quiz_results")
-data class QuizResultEntity(
+@Entity(tableName = "folders")
+data class FolderEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val deckId: Long,
-    val deckTitle: String,
-    val totalQuestions: Int,
-    val correctAnswers: Int,
-    val scorePercentage: Int,
-    val durationSeconds: Int,
-    val timestamp: Long = System.currentTimeMillis(),
+    val name: String,
+    val colorHex: String = "#6366F1",
+    val createdAt: Long = System.currentTimeMillis(),
     // --- sync fields (DB v5) ---
     @ColumnInfo(defaultValue = "''")
     val uuid: String = UUID.randomUUID().toString(),

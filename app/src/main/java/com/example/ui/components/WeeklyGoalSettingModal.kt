@@ -242,8 +242,8 @@ fun WeeklyGoalSettingModal(
                             onValueChange = { valRounded ->
                                 selectedGoalHours = (valRounded * 2f).roundToInt() / 2f
                             },
-                            valueRange = 1.0f..30.0f,
-                            steps = 57,
+                            valueRange = 0.5f..40.0f,
+                            steps = 78,
                             colors = SliderDefaults.colors(
                                 thumbColor = IndigoPrimary,
                                 activeTrackColor = IndigoPrimary,

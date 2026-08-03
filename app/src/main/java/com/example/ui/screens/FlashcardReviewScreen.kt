@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.AlertDialog
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -55,6 +56,7 @@ import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
 import com.example.data.spacedrepetition.ReviewRating
 import com.example.ui.ReviseViewModel
+import com.example.ui.ReviewSessionSummary
 import com.example.ui.components.Flashcard3DCard
 import com.example.ui.theme.AmberStreak
 import com.example.ui.theme.CyanAI
@@ -83,9 +85,32 @@ fun FlashcardReviewScreen(
     val allCards by viewModel.allCards.collectAsState()
     val aiExplanation by viewModel.aiExplanation.collectAsState()
 
+    val deckTitle = viewModel.decks.collectAsState().value.firstOrNull { it.id == deckId }?.title
+        ?: if (deckId > 0) "Deck $deckId" else "All Cards"
+
+    val sessionStartMs = remember { System.currentTimeMillis() }
+    var sessionSummary by remember { mutableStateOf<ReviewSessionSummary?>(null) }
+
+    fun finishReviewSession() {
+        val elapsedMinutes = ((System.currentTimeMillis() - sessionStartMs) / 60000L).toInt().coerceAtLeast(1)
+        val summary = viewModel.smartScheduleReviewSession(deckId, deckTitle, elapsedMinutes)
+        if (summary == null) {
+            onNavigateBack()
+        } else {
+            sessionSummary = summary
+        }
+    }
+
+    // System back button must end the session the same way the UI back arrow does.
+    BackHandler { finishReviewSession() }
+
+    // Only cards due at or before NOW are part of the session; future-dated
+    // cards stay hidden so a deck review doesn't preview tomorrow's cards.
     val reviewCards = remember(allCards, deckId) {
-        if (deckId > 0) allCards.filter { it.deckId == deckId }
-        else allCards.filter { it.nextReviewDate <= System.currentTimeMillis() }
+        val now = System.currentTimeMillis()
+        allCards.filter {
+            it.nextReviewDate <= now && (deckId <= 0 || it.deckId == deckId)
+        }
     }
 
     var currentIndex by remember { mutableIntStateOf(0) }
@@ -120,7 +145,7 @@ fun FlashcardReviewScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = { finishReviewSession() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
 
@@ -179,7 +204,50 @@ fun FlashcardReviewScreen(
             }
 
             // Main Flashcard View
-            if (reviewCards.isEmpty() || currentCard == null) {
+            if (reviewCards.isEmpty()) {
+                // Nothing is due right now — this is NOT a completed session.
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "All caught up",
+                            tint = EmeraldMastery,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "All Caught Up!",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No cards are due for review right now. Check back later, or take a quiz to keep your streak going!",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(
+                            onClick = { finishReviewSession() },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
+                        ) {
+                            Text("Back to Dashboard")
+                        }
+                    }
+                }
+            } else if (currentCard == null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
@@ -213,7 +281,7 @@ fun FlashcardReviewScreen(
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(
-                            onClick = onNavigateBack,
+                            onClick = { finishReviewSession() },
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
                         ) {
@@ -393,6 +461,86 @@ fun FlashcardReviewScreen(
                 }
             }
         )
+    }
+
+    // Session summary — shown once after the user finishes reviewing cards.
+    sessionSummary?.let { summary ->
+        AlertDialog(
+            onDismissRequest = {
+                sessionSummary = null
+                onNavigateBack()
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Done",
+                        tint = EmeraldMastery,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Session Complete", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "You reviewed ${summary.totalReviewed} " +
+                            if (summary.totalReviewed == 1) "card" else "cards",
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        SummaryCount(label = "Again", count = summary.againCount, color = RoseAlert)
+                        SummaryCount(label = "Hard", count = summary.hardCount, color = AmberStreak)
+                        SummaryCount(label = "Good", count = summary.goodCount, color = IndigoPrimary)
+                        SummaryCount(label = "Easy", count = summary.easyCount, color = EmeraldMastery)
+                    }
+                    summary.followUpDays?.let { days ->
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Follow-up session scheduled in " +
+                                if (days == 1) "1 day" else "$days days",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        sessionSummary = null
+                        onNavigateBack()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPrimary)
+                ) {
+                    Text("Done")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SummaryCount(label: String, count: Int, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "$count", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = color)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(text = label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

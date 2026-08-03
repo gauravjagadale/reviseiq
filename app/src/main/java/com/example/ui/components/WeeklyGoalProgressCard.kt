@@ -5,7 +5,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,19 +19,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreTime
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,8 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
@@ -56,21 +47,43 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.ReviseViewModel
 import com.example.ui.theme.EmeraldMastery
 import com.example.ui.theme.IndigoPrimary
-import com.example.ui.theme.OchreStreak
-import com.example.ui.theme.VioletSecondary
 
 @Composable
 fun WeeklyGoalProgressCard(
     viewModel: ReviseViewModel,
     modifier: Modifier = Modifier
 ) {
-    val view = LocalView.current
-    val haptic = LocalHapticFeedback.current
-
     val weeklyGoalHours by viewModel.weeklyStudyGoalHours.collectAsState()
     val currentWeeklyHours by viewModel.weeklyStudyHoursProgress.collectAsState()
 
     var showGoalModal by remember { mutableStateOf(false) }
+
+    WeeklyGoalContent(
+        weeklyGoalHours = weeklyGoalHours,
+        currentWeeklyHours = currentWeeklyHours,
+        onEditGoal = { showGoalModal = true },
+        onQuickLogMinutes = { viewModel.addQuickStudyMinutes(it) },
+        modifier = modifier
+    )
+
+    if (showGoalModal) {
+        WeeklyGoalSettingModal(
+            viewModel = viewModel,
+            onDismissRequest = { showGoalModal = false }
+        )
+    }
+}
+
+@Composable
+fun WeeklyGoalContent(
+    weeklyGoalHours: Float,
+    currentWeeklyHours: Float,
+    onEditGoal: () -> Unit,
+    onQuickLogMinutes: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val view = LocalView.current
+    val haptic = LocalHapticFeedback.current
 
     val remainingHours = (weeklyGoalHours - currentWeeklyHours).coerceAtLeast(0f)
     val isGoalAchieved = currentWeeklyHours >= weeklyGoalHours && weeklyGoalHours > 0f
@@ -91,7 +104,6 @@ fun WeeklyGoalProgressCard(
                 .padding(18.dp)
                 .animateContentSize(animationSpec = tween(300, easing = FastOutSlowInEasing))
         ) {
-            // Header Row: Icon, Title, and Edit Goal Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -139,7 +151,7 @@ fun WeeklyGoalProgressCard(
                                 view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                             } catch (_: Throwable) {}
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showGoalModal = true
+                            onEditGoal()
                         }
                         .testTag("edit_weekly_goal_button"),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
@@ -168,7 +180,6 @@ fun WeeklyGoalProgressCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Embedded Animated Progress Bar with Smooth Transition
             AnimatedDailyGoalProgressBar(
                 currentFloat = currentWeeklyHours,
                 targetFloat = weeklyGoalHours,
@@ -181,89 +192,89 @@ fun WeeklyGoalProgressCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Quick Study Time Logging Bar to simulate and test real progress filling
+            Text(
+                text = "Quick Log Practice:",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.MoreTime,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Quick Log Practice:",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                QuickLogChip(
+                    label = "+15m",
+                    icon = "⏱️",
+                    onClick = {
+                        try {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        } catch (_: Throwable) {}
+                        onQuickLogMinutes(15)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    QuickLogChip(
-                        label = "+15m ⏱️",
-                        onClick = {
-                            try {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            } catch (_: Throwable) {}
-                            viewModel.addQuickStudyMinutes(15)
-                        }
-                    )
+                QuickLogChip(
+                    label = "+30m",
+                    icon = "⏱️",
+                    onClick = {
+                        try {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        } catch (_: Throwable) {}
+                        onQuickLogMinutes(30)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
 
-                    QuickLogChip(
-                        label = "+30m ⏱️",
-                        onClick = {
-                            try {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            } catch (_: Throwable) {}
-                            viewModel.addQuickStudyMinutes(30)
-                        }
-                    )
-
-                    QuickLogChip(
-                        label = "+1h 🚀",
-                        onClick = {
-                            try {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            } catch (_: Throwable) {}
-                            viewModel.addQuickStudyMinutes(60)
-                        }
-                    )
-                }
+                QuickLogChip(
+                    label = "+1h",
+                    icon = "🚀",
+                    onClick = {
+                        try {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        } catch (_: Throwable) {}
+                        onQuickLogMinutes(60)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
-    }
-
-    if (showGoalModal) {
-        WeeklyGoalSettingModal(
-            viewModel = viewModel,
-            onDismissRequest = { showGoalModal = false }
-        )
     }
 }
 
 @Composable
 private fun QuickLogChip(
     label: String,
-    onClick: () -> Unit
+    icon: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() },
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        shape = RoundedCornerShape(10.dp)
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = icon,
+                fontSize = 12.sp
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }

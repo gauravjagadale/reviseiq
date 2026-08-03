@@ -62,10 +62,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.ReviseViewModel
 import com.example.ui.audio.SoundEffectManager
-import com.example.ui.theme.EmeraldMastery
-import com.example.ui.theme.IndigoPrimary
 import com.example.ui.theme.OchreStreak
 import com.example.ui.theme.OchreStreakContainer
+import com.example.ui.theme.OchreStreakContainerDark
+import com.example.ui.theme.adaptiveContainer
+import com.example.ui.theme.adaptiveMasteryAccent
+import com.example.ui.theme.adaptivePrimaryAccent
+import com.example.ui.theme.adaptiveStreakAccent
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -158,8 +161,8 @@ fun StreakShieldBottomSheet(
             // Inventory & Status Banner
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = OchreStreakContainer.copy(alpha = 0.6f),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, OchreStreak.copy(alpha = 0.5f)),
+                color = adaptiveContainer(OchreStreakContainer, OchreStreakContainerDark).copy(alpha = 0.6f),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, adaptiveStreakAccent().copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -239,14 +242,14 @@ fun StreakShieldBottomSheet(
                         containerColor = if (milestone.isClaimed)
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                         else if (milestone.isUnlocked)
-                            OchreStreakContainer.copy(alpha = 0.3f)
+                            adaptiveContainer(OchreStreakContainer, OchreStreakContainerDark).copy(alpha = 0.3f)
                         else
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     ),
                     border = androidx.compose.foundation.BorderStroke(
                         width = 1.dp,
                         color = if (milestone.isUnlocked && !milestone.isClaimed)
-                            OchreStreak
+                            adaptiveStreakAccent()
                         else
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                     )
@@ -266,8 +269,8 @@ fun StreakShieldBottomSheet(
                                         .size(36.dp)
                                         .clip(CircleShape)
                                         .background(
-                                            if (milestone.isClaimed) EmeraldMastery.copy(alpha = 0.15f)
-                                            else if (milestone.isUnlocked) OchreStreak.copy(alpha = 0.15f)
+                                            if (milestone.isClaimed) adaptiveMasteryAccent().copy(alpha = 0.15f)
+                                            else if (milestone.isUnlocked) adaptiveStreakAccent().copy(alpha = 0.15f)
                                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
                                         ),
                                     contentAlignment = Alignment.Center
@@ -277,8 +280,8 @@ fun StreakShieldBottomSheet(
                                         else if (milestone.isUnlocked) Icons.Default.AutoAwesome
                                         else Icons.Default.EmojiEvents,
                                         contentDescription = null,
-                                        tint = if (milestone.isClaimed) EmeraldMastery
-                                        else if (milestone.isUnlocked) OchreStreak
+                                        tint = if (milestone.isClaimed) adaptiveMasteryAccent()
+                                        else if (milestone.isUnlocked) adaptiveStreakAccent()
                                         else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -305,13 +308,13 @@ fun StreakShieldBottomSheet(
                             if (milestone.isClaimed) {
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = EmeraldMastery.copy(alpha = 0.15f)
+                                    color = adaptiveMasteryAccent().copy(alpha = 0.15f)
                                 ) {
                                     Text(
                                         text = "Claimed ✓",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = EmeraldMastery,
+                                        color = adaptiveMasteryAccent(),
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                     )
                                 }
@@ -357,7 +360,7 @@ fun StreakShieldBottomSheet(
                                     .fillMaxWidth()
                                     .height(6.dp)
                                     .clip(CircleShape),
-                                color = if (milestone.isUnlocked) OchreStreak else IndigoPrimary,
+                                color = if (milestone.isUnlocked) adaptiveStreakAccent() else adaptivePrimaryAccent(),
                                 trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                             )
                         }

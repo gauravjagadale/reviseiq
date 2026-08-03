@@ -32,6 +32,7 @@ tasks.named("preBuild").configure {
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
@@ -80,12 +81,17 @@ android {
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
+    // supabase-kt uses java.time APIs; enabled because minSdk = 24 < 26.
+    isCoreLibraryDesugaringEnabled = true
   }
   buildFeatures {
     compose = true
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+  ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+  }
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
@@ -122,6 +128,14 @@ dependencies {
   implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.datastore.preferences)
+  // Supabase (open-source backend): auth + PostgREST database.
+  implementation(platform(libs.supabase.bom))
+  implementation(libs.supabase.auth.kt)
+  implementation(libs.supabase.postgrest.kt)
+  implementation(libs.ktor.client.okhttp)
+  implementation(libs.kotlinx.serialization.json)
+  coreLibraryDesugaring(libs.desugar.jdk.libs)
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
@@ -131,9 +145,9 @@ dependencies {
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
   // Sign-In via Credential Manager:
   // implementation(libs.firebase.auth)
-  // implementation(libs.androidx.credentials)
-  // implementation(libs.androidx.credentials.play.services)
-  // implementation(libs.googleid)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services)
+  implementation(libs.googleid)
   implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)

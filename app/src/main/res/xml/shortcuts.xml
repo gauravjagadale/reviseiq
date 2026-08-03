@@ -8,7 +8,7 @@
         android:shortcutLongLabel="@string/shortcut_add_card_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.example"
+            android:targetPackage="com.aistudio.reviseiq.spcrev"
             android:targetClass="com.example.MainActivity">
             <extra
                 android:name="action"

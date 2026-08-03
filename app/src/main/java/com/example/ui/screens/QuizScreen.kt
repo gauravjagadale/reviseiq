@@ -71,15 +71,21 @@ import androidx.compose.ui.platform.LocalView
 import com.example.data.db.FlashcardEntity
 import com.example.ui.ReviseViewModel
 import com.example.ui.followUpAfterQuiz
-import com.example.ui.theme.EarthAlert
-import com.example.ui.theme.ForestMastery
+import com.example.ui.theme.EmeraldMastery
 import com.example.ui.theme.ForestMasteryContainer
-import com.example.ui.theme.OchreStreak
+import com.example.ui.theme.ForestMasteryContainerDark
 import com.example.ui.theme.OchreStreakContainer
-import com.example.ui.theme.SagePrimary
+import com.example.ui.theme.OchreStreakContainerDark
 import com.example.ui.theme.SagePrimaryContainer
-import com.example.ui.theme.TerracottaSecondary
+import com.example.ui.theme.SagePrimaryContainerDark
 import com.example.ui.theme.TerracottaSecondaryContainer
+import com.example.ui.theme.TerracottaSecondaryContainerDark
+import com.example.ui.theme.adaptiveAlertAccent
+import com.example.ui.theme.adaptiveContainer
+import com.example.ui.theme.adaptiveMasteryAccent
+import com.example.ui.theme.adaptivePrimaryAccent
+import com.example.ui.theme.adaptiveSecondaryAccent
+import com.example.ui.theme.adaptiveStreakAccent
 
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -179,13 +185,13 @@ fun QuizScreen(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(CircleShape)
-                        .background(SagePrimaryContainer),
+                        .background(adaptiveContainer(SagePrimaryContainer, SagePrimaryContainerDark)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Quiz,
                         contentDescription = "Empty Quiz",
-                        tint = SagePrimary,
+                        tint = adaptivePrimaryAccent(),
                         modifier = Modifier.size(40.dp)
                     )
                 }
@@ -265,7 +271,7 @@ fun QuizScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(ForestMasteryContainer)
+                                    .background(adaptiveContainer(ForestMasteryContainer, ForestMasteryContainerDark))
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Row(
@@ -275,14 +281,14 @@ fun QuizScreen(
                                     Icon(
                                         imageVector = Icons.Default.Star,
                                         contentDescription = null,
-                                        tint = ForestMastery,
+                                        tint = adaptiveMasteryAccent(),
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Text(
                                         text = "$correctCount / ${questions.size}",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = ForestMastery
+                                        color = adaptiveMasteryAccent()
                                     )
                                 }
                             }
@@ -309,9 +315,9 @@ fun QuizScreen(
                     val durationSec = ((System.currentTimeMillis() - startTimeMs) / 1000).toInt().coerceAtLeast(1)
 
                     val (performanceTitle, performanceColor, performanceMsg) = when {
-                        scorePct >= 80 -> Triple("Outstanding!", ForestMastery, "You've mastered these concepts! Excellent job.")
-                        scorePct >= 50 -> Triple("Great Effort!", OchreStreak, "Solid performance! A quick review will get you to 100%.")
-                        else -> Triple("Keep Practicing!", TerracottaSecondary, "Don't give up! Review the flashcards and try again.")
+                        scorePct >= 80 -> Triple("Outstanding!", adaptiveMasteryAccent(), "You've mastered these concepts! Excellent job.")
+                        scorePct >= 50 -> Triple("Great Effort!", adaptiveStreakAccent(), "Solid performance! A quick review will get you to 100%.")
+                        else -> Triple("Keep Practicing!", adaptiveSecondaryAccent(), "Don't give up! Review the flashcards and try again.")
                     }
 
                     Card(
@@ -332,13 +338,13 @@ fun QuizScreen(
                                 modifier = Modifier
                                     .size(72.dp)
                                     .clip(CircleShape)
-                                    .background(OchreStreakContainer),
+                                    .background(adaptiveContainer(OchreStreakContainer, OchreStreakContainerDark)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.EmojiEvents,
                                     contentDescription = "Trophy",
-                                    tint = OchreStreak,
+                                    tint = adaptiveStreakAccent(),
                                     modifier = Modifier.size(40.dp)
                                 )
                             }
@@ -520,22 +526,22 @@ fun QuizScreen(
                                     val isCorrect = idx == question.correctIndex
 
                                 val cardBg = when {
-                                    selectedOptionIdx != null && isCorrect -> ForestMasteryContainer
-                                    selectedOptionIdx != null && isSelected && !isCorrect -> TerracottaSecondaryContainer
-                                    isSelected -> SagePrimaryContainer
+                                    selectedOptionIdx != null && isCorrect -> adaptiveContainer(ForestMasteryContainer, ForestMasteryContainerDark)
+                                    selectedOptionIdx != null && isSelected && !isCorrect -> adaptiveContainer(TerracottaSecondaryContainer, TerracottaSecondaryContainerDark)
+                                    isSelected -> adaptiveContainer(SagePrimaryContainer, SagePrimaryContainerDark)
                                     else -> MaterialTheme.colorScheme.surface
                                 }
 
                                 val borderColor = when {
-                                    selectedOptionIdx != null && isCorrect -> ForestMastery
-                                    selectedOptionIdx != null && isSelected && !isCorrect -> EarthAlert
+                                    selectedOptionIdx != null && isCorrect -> adaptiveMasteryAccent()
+                                    selectedOptionIdx != null && isSelected && !isCorrect -> adaptiveAlertAccent()
                                     isSelected -> MaterialTheme.colorScheme.primary
                                     else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                                 }
 
                                 val textColor = when {
-                                    selectedOptionIdx != null && isCorrect -> ForestMastery
-                                    selectedOptionIdx != null && isSelected && !isCorrect -> EarthAlert
+                                    selectedOptionIdx != null && isCorrect -> adaptiveMasteryAccent()
+                                    selectedOptionIdx != null && isSelected && !isCorrect -> adaptiveAlertAccent()
                                     else -> MaterialTheme.colorScheme.onSurface
                                 }
 
@@ -581,9 +587,9 @@ fun QuizScreen(
 
                                         if (selectedOptionIdx != null) {
                                             if (isCorrect) {
-                                                Icon(Icons.Default.Check, contentDescription = "Correct", tint = ForestMastery)
+                                                Icon(Icons.Default.Check, contentDescription = "Correct", tint = adaptiveMasteryAccent())
                                             } else if (isSelected) {
-                                                Icon(Icons.Default.Close, contentDescription = "Wrong", tint = EarthAlert)
+                                                Icon(Icons.Default.Close, contentDescription = "Wrong", tint = adaptiveAlertAccent())
                                             }
                                         }
                                     }

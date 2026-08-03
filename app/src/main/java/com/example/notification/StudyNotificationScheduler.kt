@@ -22,6 +22,10 @@ object StudyNotificationScheduler {
     private const val ALARM_REQUEST_CODE = 8080
     private const val NOTIFICATION_ID = 9090
 
+    const val ACTION_POMODORO_FINISHED = "com.example.POMODORO_FINISHED"
+    private const val POMODORO_ALARM_REQUEST_CODE = 8081
+    private const val POMODORO_NOTIFICATION_ID = 9091
+
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val importance = NotificationManager.IMPORTANCE_HIGH
@@ -44,6 +48,41 @@ object StudyNotificationScheduler {
         } else {
             true
         }
+    }
+
+    /**
+     * Exact alarms need SCHEDULE_EXACT_ALARM, which the user can grant/revoke
+     * from system settings. Always check before scheduling so a revoked
+     * permission never crashes the app.
+     */
+    fun canScheduleExact(context: Context): Boolean {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true
+        }
+    }
+
+    /**
+     * Sends the user to the "Alarms & reminders" system screen when exact
+     * alarms are unavailable. Returns false when they already can be scheduled.
+     */
+    fun requestExactAlarmPermission(context: Context): Boolean {
+        if (canScheduleExact(context)) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                context.startActivity(
+                    Intent(
+                        android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                        android.net.Uri.parse("package:${context.packageName}")
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } catch (_: Exception) {
+                // No settings screen available; fall back to inexact alarms.
+            }
+        }
+        return true
     }
 
     fun scheduleDailyReminder(
@@ -79,14 +118,14 @@ object StudyNotificationScheduler {
         }
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canScheduleExact(context)) {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     calendar.timeInMillis,
                     pendingIntent
                 )
             } else {
-                alarmManager.set(
+                alarmManager.setAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     calendar.timeInMillis,
                     pendingIntent
@@ -94,7 +133,7 @@ object StudyNotificationScheduler {
             }
         } catch (_: SecurityException) {
             // Fallback for strict alarm permission settings
-            alarmManager.set(
+            alarmManager.setAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 calendar.timeInMillis,
                 pendingIntent
@@ -112,6 +151,21 @@ object StudyNotificationScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.cancel(pendingIntent)
+    }
+
+    /**
+     * Re-arms the daily reminder from persisted settings. Used after the alarm
+     * fires (so it repeats every day) and after BOOT_COMPLETED (so reminders
+     * survive a reboot). No-op when reminders are disabled.
+     */
+    fun rescheduleReminderIfEnabled(context: Context) {
+        val prefs = context.getSharedPreferences("reviseiq_prefs", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("key_reminders_enabled", true)) return
+        scheduleDailyReminder(
+            context = context,
+            hourOfDay = prefs.getInt("key_reminder_hour", 20),
+            minute = prefs.getInt("key_reminder_minute", 0)
+        )
     }
 
     fun sendImmediateNotification(
@@ -135,7 +189,7 @@ object StudyNotificationScheduler {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(com.example.R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
@@ -147,5 +201,85 @@ object StudyNotificationScheduler {
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
+    }
+
+    /**
+     * One-shot exact alarm fired when a focus session ends while the app is
+     * closed or in the background. Posts a "session complete" notification so
+     * the user knows the sprint is done; the session itself is finalized when
+     * the app is next opened (see ReviseViewModel.checkPomodoroCompletion).
+     */
+    fun schedulePomodoroCompletionAlarm(context: Context, endTimeMillis: Long) {
+        createNotificationChannel(context)
+
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, StudyReminderReceiver::class.java).apply {
+            action = ACTION_POMODORO_FINISHED
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            POMODORO_ALARM_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && canScheduleExact(context)) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endTimeMillis, pendingIntent)
+            } else {
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endTimeMillis, pendingIntent)
+            }
+        } catch (_: SecurityException) {
+            // Fallback for strict alarm permission settings
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endTimeMillis, pendingIntent)
+        }
+    }
+
+    fun cancelPomodoroCompletionAlarm(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, StudyReminderReceiver::class.java).apply {
+            action = ACTION_POMODORO_FINISHED
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            POMODORO_ALARM_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
+    }
+
+    fun sendPomodoroCompleteNotification(context: Context) {
+        createNotificationChannel(context)
+
+        if (!hasNotificationPermission(context)) return
+
+        val mainIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentPendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            mainIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(com.example.R.drawable.ic_notification)
+            .setContentTitle("🎉 Focus Session Complete!")
+            .setContentText("Your focus session is done — great job! Tap to see your AI summary.")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Your focus session is done — great job! Tap to see your Gemini AI summary and record your progress."
+                )
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setAutoCancel(true)
+            .setContentIntent(contentPendingIntent)
+            .build()
+
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(POMODORO_NOTIFICATION_ID, notification)
     }
 }

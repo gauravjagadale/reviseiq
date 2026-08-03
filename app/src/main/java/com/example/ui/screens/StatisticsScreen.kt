@@ -52,8 +52,13 @@ import com.example.ui.theme.AmberStreak
 import com.example.ui.theme.EmeraldMastery
 import com.example.ui.theme.IndigoPrimary
 import com.example.ui.theme.VioletSecondary
+import com.example.ui.theme.adaptiveContainer
+import com.example.ui.theme.adaptiveMasteryAccent
+import com.example.ui.theme.adaptivePrimaryAccent
+import com.example.ui.theme.adaptiveStreakAccent
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 enum class StatsTimeFrame {
@@ -73,21 +78,24 @@ fun StatisticsScreen(
     var selectedTabIdx by remember { mutableIntStateOf(1) } // Default WEEK
     val timeFrame = StatsTimeFrame.values()[selectedTabIdx]
 
-    // Calculate chart data based on time frame
-    val chartDataPoints = remember(dailyStreaks, timeFrame) {
+    // Calculate chart data based on time frame — all REAL data, no random().
+    val chartDataPoints = remember(dailyStreaks, studyLogs, timeFrame) {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val cal = Calendar.getInstance()
+        val streakMap = dailyStreaks.associateBy { it.dateString }
 
         when (timeFrame) {
             StatsTimeFrame.DAY -> {
-                // Past 24 hours / today vs yesterday
+                // Past 24 hours in 3-hour buckets, from actual review logs.
                 val points = mutableListOf<BarChartDataPoint>()
+                val now = System.currentTimeMillis()
+                val bucketMs = 3L * 60L * 60L * 1000L
                 for (i in 6 downTo 0) {
-                    val c = cal.clone() as Calendar
-                    c.add(Calendar.HOUR_OF_DAY, -i * 3)
-                    val label = SimpleDateFormat("HH:00", Locale.US).format(c.time)
-                    val valCount = (1..8).random().toFloat()
-                    points.add(BarChartDataPoint(label, valCount))
+                    val labelTime = now - i * bucketMs
+                    val windowStart = labelTime - bucketMs
+                    val count = studyLogs.count { it.timestamp in windowStart until labelTime }
+                    val label = SimpleDateFormat("HH:00", Locale.US).format(Date(labelTime))
+                    points.add(BarChartDataPoint(label, count.toFloat()))
                 }
                 points
             }
@@ -100,32 +108,48 @@ fun StatisticsScreen(
                     c.add(Calendar.DAY_OF_YEAR, -i)
                     val dateStr = sdf.format(c.time)
                     val dayName = dayNames[c.get(Calendar.DAY_OF_WEEK) - 1]
-                    val streak = dailyStreaks.find { it.dateString == dateStr }
+                    val streak = streakMap[dateStr]
                     val reviewed = (streak?.cardsReviewed ?: 0).toFloat()
                     points.add(BarChartDataPoint(dayName, reviewed))
                 }
                 points
             }
             StatsTimeFrame.MONTH -> {
-                // Past 4 Weeks
+                // Past 4 weeks, Mon-start weeks (matches the weekly goal calendar).
                 val points = mutableListOf<BarChartDataPoint>()
+                val weekStartCal = cal.clone() as Calendar
+                weekStartCal.set(Calendar.HOUR_OF_DAY, 0)
+                weekStartCal.set(Calendar.MINUTE, 0)
+                weekStartCal.set(Calendar.SECOND, 0)
+                weekStartCal.set(Calendar.MILLISECOND, 0)
+                val dow = weekStartCal.get(Calendar.DAY_OF_WEEK)
+                val daysSinceMonday = if (dow == Calendar.SUNDAY) 6 else dow - Calendar.MONDAY
+                weekStartCal.add(Calendar.DAY_OF_YEAR, -daysSinceMonday)
+                val weekStart = weekStartCal.timeInMillis
+                val weekMs = 7L * 24L * 60L * 60L * 1000L
                 for (w in 3 downTo 0) {
-                    val label = "Wk ${4 - w}"
-                    val valCount = ((w + 1) * 24 + (1..15).random()).toFloat()
-                    points.add(BarChartDataPoint(label, valCount))
+                    val weekEnd = weekStart - w * weekMs
+                    val weekBegin = weekEnd - weekMs
+                    val count = dailyStreaks
+                        .filter {
+                            val ts = it.dateString
+                            ts >= sdf.format(Date(weekBegin)) && ts < sdf.format(Date(weekEnd))
+                        }
+                        .sumOf { it.cardsReviewed }
+                    points.add(BarChartDataPoint("Wk ${4 - w}", count.toFloat()))
                 }
                 points
             }
             StatsTimeFrame.YEAR -> {
-                // Past 12 Months
+                // Past 12 months, from actual daily streak data.
                 val points = mutableListOf<BarChartDataPoint>()
                 val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
                 for (m in 11 downTo 0) {
                     val c = cal.clone() as Calendar
                     c.add(Calendar.MONTH, -m)
-                    val label = monthNames[c.get(Calendar.MONTH)]
-                    val valCount = ((12 - m) * 45 + (10..30).random()).toFloat()
-                    points.add(BarChartDataPoint(label, valCount))
+                    val key = String.format(Locale.US, "%04d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1)
+                    val count = dailyStreaks.filter { it.dateString.startsWith(key) }.sumOf { it.cardsReviewed }
+                    points.add(BarChartDataPoint(monthNames[c.get(Calendar.MONTH)], count.toFloat()))
                 }
                 points
             }
@@ -176,10 +200,10 @@ fun StatisticsScreen(
         list
     }
 
-    // Accuracy Calculation (% GOOD or EASY)
+    // Accuracy Calculation (% GOOD or EASY) — null when there is no real data.
     val totalReviews = studyLogs.size
     val goodOrEasyReviews = studyLogs.count { it.rating == "GOOD" || it.rating == "EASY" }
-    val accuracyPct = if (totalReviews > 0) (goodOrEasyReviews * 100) / totalReviews else 88
+    val accuracyPct: Int? = if (totalReviews > 0) (goodOrEasyReviews * 100) / totalReviews else null
 
     // Mastery distribution (Box Level 1 = New, 2..4 = Learning, 5 = Mastered)
     val totalCardCount = allCards.size.coerceAtLeast(1)
@@ -227,7 +251,7 @@ fun StatisticsScreen(
             TabRow(
                 selectedTabIndex = selectedTabIdx,
                 containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = IndigoPrimary,
+                contentColor = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clip(RoundedCornerShape(16.dp))
             ) {
                 listOf("Day", "Week", "Month", "Year").forEachIndexed { idx, text ->
@@ -254,10 +278,10 @@ fun StatisticsScreen(
             ) {
                 StatCard(
                     title = "Accuracy Rate",
-                    value = "$accuracyPct%",
-                    subtitle = "$goodOrEasyReviews / $totalReviews good",
+                    value = accuracyPct?.let { "$it%" } ?: "--",
+                    subtitle = if (totalReviews > 0) "$goodOrEasyReviews / $totalReviews good" else "No reviews yet",
                     icon = Icons.Default.EmojiEvents,
-                    color = EmeraldMastery,
+                    color = adaptiveMasteryAccent(),
                     modifier = Modifier.weight(1f)
                 )
 
@@ -266,7 +290,7 @@ fun StatisticsScreen(
                     value = "${dailyStreaks.sumOf { it.cardsReviewed }}",
                     subtitle = "Total revisions",
                     icon = Icons.Default.LocalFireDepartment,
-                    color = AmberStreak,
+                    color = adaptiveStreakAccent(),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -277,7 +301,7 @@ fun StatisticsScreen(
             CustomBarChart(
                 title = "Cards Reviewed (${timeFrame.name.lowercase().capitalize(Locale.US)})",
                 dataPoints = chartDataPoints,
-                primaryColor = IndigoPrimary
+                primaryColor = adaptivePrimaryAccent()
             )
         }
 
@@ -319,7 +343,7 @@ fun StatisticsScreen(
                         label = "Learning / Box 2-4",
                         count = learningCards,
                         total = totalCardCount,
-                        color = IndigoPrimary
+                        color = adaptivePrimaryAccent()
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -328,7 +352,7 @@ fun StatisticsScreen(
                         label = "Mastered / Box 5",
                         count = masteredCards,
                         total = totalCardCount,
-                        color = EmeraldMastery
+                        color = adaptiveMasteryAccent()
                     )
                 }
             }
@@ -357,10 +381,10 @@ fun StatisticsScreen(
                     ) {
                         items(dailyStreaks.take(21)) { streak ->
                             val levelColor = when {
-                                streak.cardsReviewed >= 20 -> EmeraldMastery
-                                streak.cardsReviewed >= 10 -> IndigoPrimary
-                                streak.cardsReviewed > 0 -> Color(0xFFA5B4FC)
-                                else -> Color(0xFFE2E8F0)
+                                streak.cardsReviewed >= 20 -> adaptiveMasteryAccent()
+                                streak.cardsReviewed >= 10 -> adaptivePrimaryAccent()
+                                streak.cardsReviewed > 0 -> adaptiveContainer(Color(0xFFA5B4FC), Color(0xFF4A4F7A))
+                                else -> adaptiveContainer(Color(0xFFE2E8F0), Color(0xFF23262F))
                             }
 
                             Box(
@@ -427,7 +451,7 @@ fun StatCard(
             Text(
                 text = subtitle,
                 fontSize = 10.sp,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -458,7 +482,7 @@ fun MasteryStageRow(
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp)),
             color = color,
-            trackColor = Color(0x22000000)
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
         )
     }
 }

@@ -377,17 +377,15 @@ fun QuickAddFlashcardBottomSheet(
                     scope.launch {
                         if (isCreatingNewDeck || decks.isEmpty()) {
                             val titleToUse = newDeckTitle.ifBlank { "General Deck" }
-                            viewModel.createDeck(
+                            // createDeck is synchronous and returns the real id —
+                            // no delay-and-guess dance needed.
+                            val newDeckId = viewModel.createDeck(
                                 title = titleToUse,
                                 description = "Created via Quick Add",
                                 category = "General",
                                 colorHex = "#4F46E5"
                             )
-                            // Retrieve updated decks or delay briefly
-                            kotlinx.coroutines.delay(100)
-                            val targetDeck = viewModel.decks.value.find { it.title == titleToUse }
-                            val targetId = targetDeck?.id ?: 1L
-                            viewModel.addFlashcard(targetId, cardFront.trim(), cardBack.trim(), cardHint.trim())
+                            viewModel.addFlashcard(newDeckId, cardFront.trim(), cardBack.trim(), cardHint.trim())
                         } else {
                             viewModel.addFlashcard(selectedDeckId, cardFront.trim(), cardBack.trim(), cardHint.trim())
                         }

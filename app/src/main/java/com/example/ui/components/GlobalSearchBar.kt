@@ -1,20 +1,14 @@
 package com.example.ui.components
 
 import android.view.HapticFeedbackConstants
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,11 +27,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,6 +38,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -61,7 +54,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -76,7 +68,6 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.db.DeckEntity
 import com.example.data.db.FlashcardEntity
 import com.example.ui.ReviseViewModel
-import com.example.ui.theme.CyanAI
 import com.example.ui.theme.EmeraldMastery
 import com.example.ui.theme.IndigoPrimary
 import com.example.ui.theme.OchreStreak
@@ -86,10 +77,34 @@ enum class SearchFilterType {
     ALL, FLASHCARDS, DECKS
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun GlobalSearchBar(
     viewModel: ReviseViewModel,
+    onNavigateToReview: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val allCards by viewModel.allCards.collectAsState()
+    val decks by viewModel.decks.collectAsState()
+
+    GlobalSearchContent(
+        searchQuery = searchQuery,
+        allCards = allCards,
+        decks = decks,
+        onQueryChange = { viewModel.setSearchQuery(it) },
+        onClearQuery = { viewModel.setSearchQuery("") },
+        onNavigateToReview = onNavigateToReview,
+        modifier = modifier
+    )
+}
+
+@Composable
+fun GlobalSearchContent(
+    searchQuery: String,
+    allCards: List<FlashcardEntity>,
+    decks: List<DeckEntity>,
+    onQueryChange: (String) -> Unit,
+    onClearQuery: () -> Unit,
     onNavigateToReview: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -97,22 +112,8 @@ fun GlobalSearchBar(
     val haptic = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
 
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val allCards by viewModel.allCards.collectAsState()
-    val decks by viewModel.decks.collectAsState()
-
     var selectedFilter by remember { mutableStateOf(SearchFilterType.ALL) }
     var selectedCardPreview by remember { mutableStateOf<FlashcardEntity?>(null) }
-    var isFocused by remember { mutableStateOf(false) }
-
-    val popularTopics = listOf(
-        "Computer Science",
-        "Data Structures",
-        "Spanish",
-        "Biology",
-        "Anatomy",
-        "Leitner Box"
-    )
 
     val matchedDecks = remember(searchQuery, decks) {
         if (searchQuery.isBlank()) emptyList()
@@ -140,7 +141,7 @@ fun GlobalSearchBar(
         modifier = modifier
             .fillMaxWidth()
             .testTag("global_search_bar_card"),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -149,23 +150,22 @@ fun GlobalSearchBar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
                 .animateContentSize(animationSpec = tween(300, easing = FastOutSlowInEasing))
         ) {
-            // Search Input Field
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = { query ->
-                    viewModel.setSearchQuery(query)
-                },
+                onValueChange = { onQueryChange(it) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("global_search_input_field"),
+                textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                 placeholder = {
                     Text(
                         text = "Search flashcards, topics, or decks...",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
                     )
                 },
                 leadingIcon = {
@@ -173,7 +173,7 @@ fun GlobalSearchBar(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Search Icon",
                         tint = IndigoPrimary,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 },
                 trailingIcon = {
@@ -183,7 +183,7 @@ fun GlobalSearchBar(
                                 try {
                                     view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                                 } catch (_: Throwable) {}
-                                viewModel.setSearchQuery("")
+                                onClearQuery()
                             },
                             modifier = Modifier.testTag("search_clear_button")
                         ) {
@@ -191,13 +191,13 @@ fun GlobalSearchBar(
                                 imageVector = Icons.Default.Clear,
                                 contentDescription = "Clear search",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = IndigoPrimary,
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
@@ -210,65 +210,9 @@ fun GlobalSearchBar(
                 })
             )
 
-            // Quick Topic Suggestion Chips when query is empty
-            if (searchQuery.isEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lightbulb,
-                        contentDescription = "Suggestions",
-                        tint = OchreStreak,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Suggested Search Topics:",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    popularTopics.forEach { topic ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                                .clickable {
-                                    try {
-                                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                                    } catch (_: Throwable) {}
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    viewModel.setSearchQuery(topic)
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = "🔍 $topic",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Search Results Section when query is present
             if (searchQuery.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Search Filter Tabs
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -282,7 +226,7 @@ fun GlobalSearchBar(
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = IndigoPrimary,
-                            selectedLabelColor = Color.White
+                            selectedLabelColor = androidx.compose.ui.graphics.Color.White
                         )
                     )
 
@@ -294,7 +238,7 @@ fun GlobalSearchBar(
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = IndigoPrimary,
-                            selectedLabelColor = Color.White
+                            selectedLabelColor = androidx.compose.ui.graphics.Color.White
                         )
                     )
 
@@ -306,7 +250,7 @@ fun GlobalSearchBar(
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = IndigoPrimary,
-                            selectedLabelColor = Color.White
+                            selectedLabelColor = androidx.compose.ui.graphics.Color.White
                         )
                     )
                 }
@@ -340,7 +284,7 @@ fun GlobalSearchBar(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Try searching for keywords like 'Structures', 'Vocabulary', or 'Spanish'",
+                                text = "Try different keywords or check your deck names",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -350,10 +294,9 @@ fun GlobalSearchBar(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 320.dp),
+                            .heightIn(max = 300.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Deck Results Section
                         if (showDecks && matchedDecks.isNotEmpty()) {
                             item {
                                 Text(
@@ -375,7 +318,6 @@ fun GlobalSearchBar(
                             }
                         }
 
-                        // Flashcard Results Section
                         if (showCards && matchedCards.isNotEmpty()) {
                             item {
                                 Text(
@@ -404,7 +346,6 @@ fun GlobalSearchBar(
         }
     }
 
-    // Card Detail Preview Dialog when clicking a matched flashcard
     selectedCardPreview?.let { card ->
         val parentDeck = deckMap[card.deckId]
         Dialog(onDismissRequest = { selectedCardPreview = null }) {

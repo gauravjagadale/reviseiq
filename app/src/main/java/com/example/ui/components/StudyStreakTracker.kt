@@ -1,8 +1,6 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -28,14 +26,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Celebration
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
@@ -43,15 +37,18 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -65,21 +62,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.db.DailyStreakEntity
-import com.example.ui.theme.EarthAlert
-import com.example.ui.theme.ForestMastery
-import com.example.ui.theme.ForestMasteryContainer
+import com.example.ui.DailyTask
 import com.example.ui.theme.OchreStreak
-import com.example.ui.theme.OchreStreakContainer
-import com.example.ui.theme.SagePrimary
-import com.example.ui.theme.SagePrimaryContainer
-import com.example.ui.theme.TerracottaSecondary
-import com.example.ui.theme.TerracottaSecondaryContainer
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -87,11 +78,11 @@ import java.util.Locale
 import kotlin.random.Random
 
 enum class DayStreakStatus {
-    GOAL_MET,      // Reached daily card goal
-    STUDIED,       // Had study activity (at least 1 card/quiz)
-    PENDING_TODAY, // Today, no activity yet
-    MISSED_RESET,  // Past day missed (caused streak reset)
-    FUTURE         // Upcoming days
+    GOAL_MET,
+    STUDIED,
+    PENDING_TODAY,
+    MISSED_RESET,
+    FUTURE
 }
 
 data class CalendarDayStreak(
@@ -118,6 +109,48 @@ private data class ConfettiParticle(
     val isStar: Boolean = false
 )
 
+private data class StreakPalette(
+    val ochre: Color,
+    val ochreContainer: Color,
+    val forest: Color,
+    val forestContainer: Color,
+    val sage: Color,
+    val sageContainer: Color,
+    val terracotta: Color,
+    val terracottaContainer: Color,
+    val earth: Color
+)
+
+@Composable
+private fun streakPalette(): StreakPalette {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    return if (isDark) {
+        StreakPalette(
+            ochre = Color(0xFFF2B84B),
+            ochreContainer = Color(0xFFC67D0A).copy(alpha = 0.22f),
+            forest = Color(0xFF74C69D),
+            forestContainer = Color(0xFF2D6A4F).copy(alpha = 0.30f),
+            sage = Color(0xFF8BAE93),
+            sageContainer = Color(0xFF385A43).copy(alpha = 0.30f),
+            terracotta = Color(0xFFE08E73),
+            terracottaContainer = Color(0xFFC06346).copy(alpha = 0.25f),
+            earth = Color(0xFFE57373)
+        )
+    } else {
+        StreakPalette(
+            ochre = Color(0xFFC67D0A),
+            ochreContainer = Color(0xFFFDEFD9),
+            forest = Color(0xFF2D6A4F),
+            forestContainer = Color(0xFFD8F3DC),
+            sage = Color(0xFF385A43),
+            sageContainer = Color(0xFFE2EBE2),
+            terracotta = Color(0xFFC06346),
+            terracottaContainer = Color(0xFFF9EAE1),
+            earth = Color(0xFFB93838)
+        )
+    }
+}
+
 @Composable
 fun CelebrationConfettiCanvas(
     modifier: Modifier = Modifier,
@@ -125,13 +158,13 @@ fun CelebrationConfettiCanvas(
 ) {
     val particles = remember {
         val colors = listOf(
-            Color(0xFFFFB703), // Ochre gold
-            Color(0xFFFB8500), // Fire orange
-            Color(0xFF2A9D8F), // Forest sage
-            Color(0xFFE76F51), // Terracotta
-            Color(0xFFFFD166), // Bright yellow
-            Color(0xFF06D6A0), // Emerald
-            Color(0xFF118AB2)  // Sapphire
+            Color(0xFFFFB703),
+            Color(0xFFFB8500),
+            Color(0xFF2A9D8F),
+            Color(0xFFE76F51),
+            Color(0xFFFFD166),
+            Color(0xFF06D6A0),
+            Color(0xFF118AB2)
         )
         List(60) {
             ConfettiParticle(
@@ -207,9 +240,11 @@ fun CelebrationConfettiCanvas(
 @Composable
 fun StudyStreakTracker(
     dailyStreaks: List<DailyStreakEntity>,
-    targetDailyGoal: Int = 20,
+    dailyTasks: List<DailyTask>,
     streakShieldsCount: Int = 1,
-    onLogStudyActivity: (cardsCount: Int) -> Unit = {},
+    onAddTask: (String) -> Unit = {},
+    onRemoveTask: (String) -> Unit = {},
+    onToggleTask: (String) -> Unit = {},
     onOpenShieldModal: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -219,12 +254,10 @@ fun StudyStreakTracker(
 
     val todayStr = remember { dateFormat.format(Date()) }
 
-    // Map streak entities by date
     val streakMap = remember(dailyStreaks) {
         dailyStreaks.associateBy { it.dateString }
     }
 
-    // Build last 7 days calendar window
     val last7Days = remember(streakMap, todayStr) {
         val list = mutableListOf<CalendarDayStreak>()
         val cal = Calendar.getInstance()
@@ -241,7 +274,7 @@ fun StudyStreakTracker(
             val reviewed = entry?.cardsReviewed ?: 0
             val quizzes = entry?.quizzesCompleted ?: 0
             val mins = entry?.studyDurationMinutes ?: 0
-            val target = entry?.goalTargetCards ?: targetDailyGoal
+            val target = entry?.goalTargetCards ?: 20
 
             val status = when {
                 reviewed >= target -> DayStreakStatus.GOAL_MET
@@ -267,7 +300,6 @@ fun StudyStreakTracker(
         list
     }
 
-    // Compute active streak & longest streak
     val (activeStreak, longestStreak, todayCompleted) = remember(streakMap, todayStr) {
         var current = 0
         var maxStreak = 0
@@ -275,18 +307,12 @@ fun StudyStreakTracker(
 
         val cal = Calendar.getInstance()
 
-        // Check today's status
         val todayEntry = streakMap[todayStr]
         val isTodayActive = (todayEntry?.cardsReviewed ?: 0) > 0 || (todayEntry?.quizzesCompleted ?: 0) > 0
 
-        if (isTodayActive) {
-            current++
-            cal.add(Calendar.DAY_OF_YEAR, -1)
-        } else {
-            cal.add(Calendar.DAY_OF_YEAR, -1)
-        }
+        cal.add(Calendar.DAY_OF_YEAR, -1)
+        if (isTodayActive) current++
 
-        // Count back consecutive days
         while (true) {
             val dStr = dateFormat.format(cal.time)
             val entry = streakMap[dStr]
@@ -298,7 +324,6 @@ fun StudyStreakTracker(
             }
         }
 
-        // Calculate historical max streak
         val allCals = Calendar.getInstance()
         for (i in 0..60) {
             val dStr = dateFormat.format(allCals.time)
@@ -312,32 +337,17 @@ fun StudyStreakTracker(
             allCals.add(Calendar.DAY_OF_YEAR, -1)
         }
 
-        Triple(current, maxOf(current, maxStreak, 3), isTodayActive)
+        Triple(current, maxOf(current, maxStreak), isTodayActive)
     }
 
-    val todayStreak = streakMap[todayStr]
-    val todayReviewed = todayStreak?.cardsReviewed ?: 0
-    val progressRatio = (todayReviewed.toFloat() / targetDailyGoal.toFloat()).coerceIn(0f, 1f)
-
     var selectedDayDetails by remember { mutableStateOf<CalendarDayStreak?>(null) }
-    var showStreakInfoDialog by remember { mutableStateOf(false) }
-    var showMilestoneCelebrationDialog by remember { mutableStateOf(false) }
     var triggersConfettiCelebration by remember { mutableStateOf(false) }
+    var newTaskText by remember { mutableStateOf("") }
 
-    // Pulsing animation for active streak flame
-    val infiniteTransition = rememberInfiniteTransition(label = "streak_flame_pulse")
-    val flameScale by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "flame_scale"
-    )
+    val tasksCompleted = dailyTasks.count { it.isCompleted }
+    val totalTasks = dailyTasks.size
 
-    // Check for 7-day milestone reach
-    val is7DayMilestoneReached = activeStreak >= 7 || (last7Days.count { it.status == DayStreakStatus.GOAL_MET || it.status == DayStreakStatus.STUDIED } >= 7)
+    val palette = streakPalette()
 
     Box(modifier = modifier.fillMaxWidth()) {
         Card(
@@ -353,29 +363,33 @@ fun StudyStreakTracker(
                     .fillMaxWidth()
                     .padding(20.dp)
             ) {
-                // Top Bar: Flame Banner Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        val flamePulse by rememberInfiniteTransition(label = "flame_pulse").animateFloat(
+                            initialValue = 0f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(tween(1600), RepeatMode.Reverse),
+                            label = "flame_pulse_value"
+                        )
                         Box(
                             modifier = Modifier
                                 .size(54.dp)
+                                .scale(if (activeStreak > 0) 1f + 0.05f * flamePulse else 1f)
                                 .clip(CircleShape)
                                 .background(
-                                    if (activeStreak > 0) OchreStreakContainer else MaterialTheme.colorScheme.surfaceVariant
+                                    if (activeStreak > 0) palette.ochreContainer else MaterialTheme.colorScheme.surfaceVariant
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.LocalFireDepartment,
                                 contentDescription = "Streak Flame",
-                                tint = if (activeStreak > 0) OchreStreak else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .scale(if (activeStreak > 0) flameScale else 1.0f)
+                                tint = if (activeStreak > 0) palette.ochre else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(34.dp)
                             )
                         }
 
@@ -389,21 +403,10 @@ fun StudyStreakTracker(
                                     fontWeight = FontWeight.Black,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-
-                                if (activeStreak > 0) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.Star,
-                                        contentDescription = "Active Streak",
-                                        tint = OchreStreak,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
                             }
 
                             Text(
                                 text = when {
-                                    todayCompleted && todayReviewed >= targetDailyGoal -> "Daily Goal Mastered! 🎉"
                                     todayCompleted -> "Streak Maintained for Today! 🔥"
                                     activeStreak > 0 -> "Keep your streak alive—study today!"
                                     else -> "Start your study streak today!"
@@ -415,123 +418,54 @@ fun StudyStreakTracker(
                         }
                     }
 
-                    // Longest Streak & Streak Shield Badge Buttons
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(OchreStreakContainer)
-                                .clickable { onOpenShieldModal() }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                                .testTag("study_tracker_streak_shield_btn")
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Shield,
-                                    contentDescription = "Shield",
-                                    tint = OchreStreak,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "$streakShieldsCount 🛡️",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = OchreStreak
-                                )
-                            }
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(ForestMasteryContainer)
-                                .clickable {
-                                    triggersConfettiCelebration = true
-                                    showMilestoneCelebrationDialog = true
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.EmojiEvents,
-                                    contentDescription = "Record",
-                                    tint = ForestMastery,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Best: $longestStreak",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ForestMastery
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // Milestone Banner Notification if 7-day milestone is achieved or active
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(OchreStreakContainer, ForestMasteryContainer)
-                            )
-                        )
-                        .clickable {
-                            triggersConfettiCelebration = true
-                            showMilestoneCelebrationDialog = true
-                        }
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(palette.ochreContainer)
+                            .clickable { onOpenShieldModal() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .testTag("study_tracker_streak_shield_btn")
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.Celebration,
-                                contentDescription = "Milestone Banner",
-                                tint = OchreStreak,
-                                modifier = Modifier.size(22.dp)
+                                imageVector = Icons.Default.Shield,
+                                contentDescription = "Shield",
+                                tint = palette.ochre,
+                                modifier = Modifier.size(14.dp)
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = if (is7DayMilestoneReached) "7-Day Streak Milestone Mastered!" else "7-Day Streak Goal in Progress",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Tap to launch celebration fireworks & claim badges 🎉",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$streakShieldsCount",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = palette.ochre
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(2.dp)
+                                    .background(palette.ochre.copy(alpha = 0.4f))
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = "Record",
+                                tint = palette.forest,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$longestStreak",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = palette.forest
+                            )
                         }
-
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Celebrate",
-                            tint = ForestMastery,
-                            modifier = Modifier.size(18.dp)
-                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Calendar Activity Strip (Last 7 Days)
                 Text(
                     text = "CALENDAR ACTIVITY",
                     fontSize = 11.sp,
@@ -548,10 +482,10 @@ fun StudyStreakTracker(
                 ) {
                     last7Days.forEach { dayStreak ->
                         val (cellBg, borderColor, iconTint) = when (dayStreak.status) {
-                            DayStreakStatus.GOAL_MET -> Triple(ForestMasteryContainer, ForestMastery, ForestMastery)
-                            DayStreakStatus.STUDIED -> Triple(OchreStreakContainer, OchreStreak, OchreStreak)
-                            DayStreakStatus.PENDING_TODAY -> Triple(SagePrimaryContainer, SagePrimary, SagePrimary)
-                            DayStreakStatus.MISSED_RESET -> Triple(TerracottaSecondaryContainer, TerracottaSecondary, EarthAlert)
+                            DayStreakStatus.GOAL_MET -> Triple(palette.forestContainer, palette.forest, palette.forest)
+                            DayStreakStatus.STUDIED -> Triple(palette.ochreContainer, palette.ochre, palette.ochre)
+                            DayStreakStatus.PENDING_TODAY -> Triple(palette.sageContainer, palette.sage, palette.sage)
+                            DayStreakStatus.MISSED_RESET -> Triple(palette.terracottaContainer, palette.terracotta, palette.earth)
                             DayStreakStatus.FUTURE -> Triple(MaterialTheme.colorScheme.surfaceVariant, Color.Transparent, Color.Gray)
                         }
 
@@ -592,7 +526,7 @@ fun StudyStreakTracker(
                                         text = dayStreak.dateNumber,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (dayStreak.status == DayStreakStatus.MISSED_RESET) EarthAlert else MaterialTheme.colorScheme.onSurface
+                                        color = if (dayStreak.status == DayStreakStatus.MISSED_RESET) palette.earth else MaterialTheme.colorScheme.onSurface
                                     )
 
                                     Spacer(modifier = Modifier.height(2.dp))
@@ -601,25 +535,25 @@ fun StudyStreakTracker(
                                         DayStreakStatus.GOAL_MET -> Icon(
                                             imageVector = Icons.Default.CheckCircle,
                                             contentDescription = "Goal Met",
-                                            tint = ForestMastery,
+                                            tint = palette.forest,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         DayStreakStatus.STUDIED -> Icon(
                                             imageVector = Icons.Default.LocalFireDepartment,
                                             contentDescription = "Studied",
-                                            tint = OchreStreak,
+                                            tint = palette.ochre,
                                             modifier = Modifier.size(16.dp)
                                         )
                                         DayStreakStatus.PENDING_TODAY -> Box(
                                             modifier = Modifier
                                                 .size(8.dp)
                                                 .clip(CircleShape)
-                                                .background(SagePrimary)
+                                                .background(palette.sage)
                                         )
                                         DayStreakStatus.MISSED_RESET -> Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "Missed Day (Reset)",
-                                            tint = EarthAlert,
+                                            tint = palette.earth,
                                             modifier = Modifier.size(14.dp)
                                         )
                                         DayStreakStatus.FUTURE -> {}
@@ -632,63 +566,154 @@ fun StudyStreakTracker(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Daily Target Progress Bar & Action Controls
-                AnimatedDailyGoalProgressBar(
-                    currentCount = todayReviewed,
-                    targetGoal = targetDailyGoal,
-                    titleText = "Today's Study Goal Target",
-                    barHeight = 16.dp
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Quick Log Study & Celebration Trigger Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = palette.forest,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Today's Tasks",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Text(
+                        text = "$tasksCompleted / $totalTasks done",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (tasksCompleted == totalTasks && totalTasks > 0) palette.forest else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (totalTasks > 0) {
+                    AnimatedDailyGoalProgressBar(
+                        currentCount = tasksCompleted,
+                        targetGoal = totalTasks,
+                        titleText = "Task Progress",
+                        barHeight = 14.dp
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
+                if (dailyTasks.isEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ) {
+                        Text(
+                            text = "No tasks yet — add your first study task below!",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        dailyTasks.forEach { task ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (task.isCompleted) palette.forestContainer.copy(alpha = 0.6f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = task.isCompleted,
+                                    onCheckedChange = {
+                                        onToggleTask(task.id)
+                                        if (!task.isCompleted) {
+                                            triggersConfettiCelebration = true
+                                        }
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = palette.forest,
+                                        uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+
+                                Text(
+                                    text = task.title,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (task.isCompleted) FontWeight.Medium else FontWeight.SemiBold,
+                                    color = if (task.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                IconButton(
+                                    onClick = { onRemoveTask(task.id) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Remove task",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newTaskText,
+                        onValueChange = { newTaskText = it },
+                        placeholder = { Text("Add a task, e.g. Review 5 cards", fontSize = 12.sp) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    IconButton(
                         onClick = {
-                            onLogStudyActivity(5)
-                            triggersConfettiCelebration = true
+                            if (newTaskText.isNotBlank()) {
+                                onAddTask(newTaskText)
+                                newTaskText = ""
+                            }
                         },
                         modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .testTag("add_task_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "Add Cards",
-                            modifier = Modifier.size(16.dp)
+                            contentDescription = "Add Task",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(22.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Log 5 Cards (+1 Day)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            triggersConfettiCelebration = true
-                            showMilestoneCelebrationDialog = true
-                        },
-                        modifier = Modifier.height(42.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Celebration,
-                            contentDescription = "Celebrate Milestone",
-                            tint = OchreStreak,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Celebrate 🎉", fontSize = 12.sp, color = OchreStreak)
                     }
                 }
             }
         }
 
-        // Overlay Confetti Canvas when triggered
         if (triggersConfettiCelebration) {
             CelebrationConfettiCanvas(
                 modifier = Modifier
@@ -699,7 +724,15 @@ fun StudyStreakTracker(
         }
     }
 
-    // Day Details Dialog when tapping a day cell
+    // Reset the celebration flag once the burst finishes, so completing the
+    // NEXT task fires confetti again (instead of only the first one per session).
+    LaunchedEffect(triggersConfettiCelebration) {
+        if (triggersConfettiCelebration) {
+            delay(4000)
+            triggersConfettiCelebration = false
+        }
+    }
+
     selectedDayDetails?.let { dayDetails ->
         AlertDialog(
             onDismissRequest = { selectedDayDetails = null },
@@ -714,10 +747,10 @@ fun StudyStreakTracker(
                         },
                         contentDescription = null,
                         tint = when (dayDetails.status) {
-                            DayStreakStatus.GOAL_MET -> ForestMastery
-                            DayStreakStatus.STUDIED -> OchreStreak
-                            DayStreakStatus.MISSED_RESET -> EarthAlert
-                            else -> SagePrimary
+                            DayStreakStatus.GOAL_MET -> palette.forest
+                            DayStreakStatus.STUDIED -> palette.ochre
+                            DayStreakStatus.MISSED_RESET -> palette.earth
+                            else -> palette.sage
                         },
                         modifier = Modifier.size(24.dp)
                     )
@@ -735,7 +768,7 @@ fun StudyStreakTracker(
                         text = when (dayDetails.status) {
                             DayStreakStatus.GOAL_MET -> "Daily goal of ${dayDetails.goalTargetCards} cards was completed! Great work."
                             DayStreakStatus.STUDIED -> "Study session recorded. Streak maintained."
-                            DayStreakStatus.PENDING_TODAY -> "No study activity recorded yet today. Complete cards to increment your streak!"
+                            DayStreakStatus.PENDING_TODAY -> "No study activity recorded yet today. Complete tasks to increment your streak!"
                             DayStreakStatus.MISSED_RESET -> "No activity recorded on this day. Consecutive streak was reset."
                             DayStreakStatus.FUTURE -> "Upcoming day."
                         },
@@ -774,192 +807,6 @@ fun StudyStreakTracker(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text("Close")
-                }
-            }
-        )
-    }
-
-    // Milestone Celebration Modal Dialog with Lottie-style animation
-    if (showMilestoneCelebrationDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showMilestoneCelebrationDialog = false
-                triggersConfettiCelebration = false
-            },
-            title = null,
-            text = {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Confetti canvas inside dialog
-                    CelebrationConfettiCanvas(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(280.dp),
-                        isCelebrating = true
-                    )
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clip(CircleShape)
-                                .background(OchreStreakContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.EmojiEvents,
-                                contentDescription = "Trophy",
-                                tint = OchreStreak,
-                                modifier = Modifier.size(42.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Text(
-                            text = "STREAK MILESTONE UNLOCKED! 🎉",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = "You've maintained an active study habit across calendar days! Outstanding consistency.",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(ForestMasteryContainer)
-                                .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Active Streak", fontSize = 11.sp, color = ForestMastery)
-                                Text("$activeStreak Days", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = ForestMastery)
-                            }
-
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("Best Record", fontSize = 11.sp, color = ForestMastery)
-                                Text("$longestStreak Days", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = ForestMastery)
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showMilestoneCelebrationDialog = false
-                        triggersConfettiCelebration = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Keep Going! 🔥", fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-    }
-
-    // Streak Rules & Freeze Info Dialog
-    if (showStreakInfoDialog) {
-        AlertDialog(
-            onDismissRequest = { showStreakInfoDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Shield,
-                        contentDescription = "Shield",
-                        tint = OchreStreak,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Streak Rules & Protections", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = "🔥 Streak Logic Rules:",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Text(
-                        text = "• Increment: Complete at least 1 card review or practice quiz daily to keep your flame active.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Text(
-                        text = "• Reset: If a full calendar day passes without any revision activity, the current streak count resets to 0.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Text(
-                        text = "• Goal Mastery: Reaching your target of $targetDailyGoal cards unlocks the green Goal Met badge.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(OchreStreakContainer)
-                            .padding(12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = "Streak Freeze",
-                                tint = OchreStreak,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = "1 Streak Freeze Active",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = OchreStreak
-                                )
-                                Text(
-                                    text = "Automatically protects 1 missed calendar day per month.",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showStreakInfoDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("Got It!")
                 }
             }
         )

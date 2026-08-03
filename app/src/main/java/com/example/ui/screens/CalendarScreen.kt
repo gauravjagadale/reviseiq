@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -65,21 +64,28 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.db.DeckEntity
+import com.example.data.db.FlashcardEntity
 import com.example.ui.ReviseViewModel
+import com.example.ui.ScheduledSession
 import com.example.ui.components.PomodoroTimerCard
-import com.example.ui.components.StudyReminderCard
 import com.example.ui.components.WeeklyGoalProgressCard
 import com.example.ui.theme.ForestMastery
 import com.example.ui.theme.OchreStreak
 import com.example.ui.theme.SagePrimary
 import com.example.ui.theme.SagePrimaryContainer
+import com.example.ui.theme.SagePrimaryContainerDark
 import com.example.ui.theme.TerracottaSecondary
 import com.example.ui.theme.TerracottaSecondaryContainer
+import com.example.ui.theme.TerracottaSecondaryContainerDark
+import com.example.ui.theme.adaptiveContainer
+import com.example.ui.theme.adaptiveMasteryAccent
+import com.example.ui.theme.adaptivePrimaryAccent
+import com.example.ui.theme.adaptiveSecondaryAccent
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
     viewModel: ReviseViewModel,
@@ -89,13 +95,50 @@ fun CalendarScreen(
     val decks by viewModel.decks.collectAsState()
     val scheduledSessions by viewModel.scheduledSessions.collectAsState()
 
+    CalendarContent(
+        allCards = allCards,
+        decks = decks,
+        scheduledSessions = scheduledSessions,
+        onNavigateToReview = onNavigateToReview,
+        onAddSession = viewModel::addScheduledSession,
+        onToggleSession = viewModel::toggleSessionCompleted,
+        onDeleteSession = viewModel::deleteScheduledSession,
+        extraTopContent = {
+            Column {
+                PomodoroTimerCard(viewModel = viewModel)
+                Spacer(modifier = Modifier.height(16.dp))
+                WeeklyGoalProgressCard(viewModel = viewModel)
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CalendarContent(
+    allCards: List<FlashcardEntity>,
+    decks: List<DeckEntity>,
+    scheduledSessions: List<ScheduledSession>,
+    onNavigateToReview: (Long) -> Unit,
+    onAddSession: (deckId: Long, deckTitle: String, dateInMillis: Long, durationMinutes: Int, focusTopic: String) -> Unit,
+    onToggleSession: (String) -> Unit,
+    onDeleteSession: (String) -> Unit,
+    extraTopContent: (@Composable () -> Unit)? = null
+) {
     var currentCalendar by remember { mutableStateOf(Calendar.getInstance()) }
     var selectedDateCalendar by remember { mutableStateOf(Calendar.getInstance()) }
     var showScheduleDialog by remember { mutableStateOf(false) }
 
-    val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.US)
-    val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-    val displayDateFormat = SimpleDateFormat("EEEE, MMM d, yyyy", Locale.US)
+    val formats = remember {
+        object {
+            val month = SimpleDateFormat("MMMM yyyy", Locale.US)
+            val day = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val display = SimpleDateFormat("EEEE, MMM d, yyyy", Locale.US)
+        }
+    }
+    val monthFormat = formats.month
+    val dayFormat = formats.day
+    val displayDateFormat = formats.display
     val todayStr = dayFormat.format(Calendar.getInstance().time)
 
     // Calculate grid items for the current view month
@@ -119,22 +162,41 @@ fun CalendarScreen(
 
     val selectedDateStr = dayFormat.format(selectedDateCalendar.time)
 
-    // Monthly stats
-    val (monthlyCardCount, monthlySessionCount) = remember(allCards, scheduledSessions, currentCalendar) {
-        val viewMonth = currentCalendar.get(Calendar.MONTH)
-        val viewYear = currentCalendar.get(Calendar.YEAR)
-
-        val cardCount = allCards.count { card ->
+    // O(1) lookups for the grid: one map per month instead of filtering all data per cell
+    val viewMonthKey = currentCalendar.get(Calendar.MONTH) to currentCalendar.get(Calendar.YEAR)
+    val cardCountByDay = remember(allCards, viewMonthKey) {
+        val m = mutableMapOf<String, Int>()
+        allCards.forEach { card ->
             val cCal = Calendar.getInstance().apply { timeInMillis = card.nextReviewDate }
-            cCal.get(Calendar.MONTH) == viewMonth && cCal.get(Calendar.YEAR) == viewYear
+            if (cCal.get(Calendar.MONTH) == viewMonthKey.first && cCal.get(Calendar.YEAR) == viewMonthKey.second) {
+                m.merge(dayFormat.format(cCal.time), 1, Int::plus)
+            }
         }
-
-        val sessionCount = scheduledSessions.count { session ->
+        m
+    }
+    val sessionCountByDay = remember(scheduledSessions, viewMonthKey) {
+        val m = mutableMapOf<String, Int>()
+        scheduledSessions.forEach { session ->
             val sCal = Calendar.getInstance().apply { timeInMillis = session.dateInMillis }
-            sCal.get(Calendar.MONTH) == viewMonth && sCal.get(Calendar.YEAR) == viewYear
+            if (sCal.get(Calendar.MONTH) == viewMonthKey.first && sCal.get(Calendar.YEAR) == viewMonthKey.second) {
+                m.merge(dayFormat.format(sCal.time), 1, Int::plus)
+            }
         }
+        m
+    }
 
-        Pair(cardCount, sessionCount)
+    // Monthly stats
+    val monthlyCardCount = remember(allCards, viewMonthKey) {
+        allCards.count { card ->
+            val cCal = Calendar.getInstance().apply { timeInMillis = card.nextReviewDate }
+            cCal.get(Calendar.MONTH) == viewMonthKey.first && cCal.get(Calendar.YEAR) == viewMonthKey.second
+        }
+    }
+    val monthlySessionCount = remember(scheduledSessions, viewMonthKey) {
+        scheduledSessions.count { session ->
+            val sCal = Calendar.getInstance().apply { timeInMillis = session.dateInMillis }
+            sCal.get(Calendar.MONTH) == viewMonthKey.first && sCal.get(Calendar.YEAR) == viewMonthKey.second
+        }
     }
 
     // Items for selected day
@@ -227,7 +289,7 @@ fun CalendarScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(SagePrimaryContainer)
+                                .background(adaptiveContainer(SagePrimaryContainer, SagePrimaryContainerDark))
                                 .clickable {
                                     val now = Calendar.getInstance()
                                     currentCalendar = now.clone() as Calendar
@@ -239,7 +301,7 @@ fun CalendarScreen(
                                 Icon(
                                     imageVector = Icons.Default.Today,
                                     contentDescription = "Today",
-                                    tint = SagePrimary,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -247,7 +309,7 @@ fun CalendarScreen(
                                     text = "Today",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = SagePrimary
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                         }
@@ -278,7 +340,7 @@ fun CalendarScreen(
                                 text = "$monthlySessionCount",
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = TerracottaSecondary
+                                color = adaptiveSecondaryAccent()
                             )
                             Text(
                                 text = "Scheduled Sessions",
@@ -313,15 +375,15 @@ fun CalendarScreen(
                     ) {
                         Text("Workload: ", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(SagePrimaryContainer))
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(adaptiveContainer(SagePrimaryContainer, SagePrimaryContainerDark)))
                         Spacer(modifier = Modifier.width(2.dp))
                         Text("Light", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(SagePrimary))
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(adaptivePrimaryAccent()))
                         Spacer(modifier = Modifier.width(2.dp))
                         Text("Heavy", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(TerracottaSecondary))
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(adaptiveSecondaryAccent()))
                         Spacer(modifier = Modifier.width(2.dp))
                         Text("Session", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -329,19 +391,9 @@ fun CalendarScreen(
             }
         }
 
-        // Push Notification Study Reminders Card
-        item {
-            StudyReminderCard(viewModel = viewModel)
-        }
-
-        // Pomodoro Focus Timer Card (Calendar & Study Log Integrated)
-        item {
-            PomodoroTimerCard(viewModel = viewModel)
-        }
-
-        // Weekly Goal Progress Card
-        item {
-            WeeklyGoalProgressCard(viewModel = viewModel)
+        // Optional extra content (Pomodoro + Weekly Goal cards wired to the ViewModel)
+        extraTopContent?.let { content ->
+            item { content() }
         }
 
         // Calendar Grid Container Card
@@ -364,6 +416,10 @@ fun CalendarScreen(
                                 val prev = currentCalendar.clone() as Calendar
                                 prev.add(Calendar.MONTH, -1)
                                 currentCalendar = prev
+                                // Reset the selection into the month being shown,
+                                // otherwise the detail panel shows a foreign date.
+                                selectedDateCalendar = prev.clone() as Calendar
+                                selectedDateCalendar.set(Calendar.DAY_OF_MONTH, 1)
                             }
                         ) {
                             Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month")
@@ -381,6 +437,10 @@ fun CalendarScreen(
                                 val next = currentCalendar.clone() as Calendar
                                 next.add(Calendar.MONTH, 1)
                                 currentCalendar = next
+                                // Reset the selection into the month being shown,
+                                // otherwise the detail panel shows a foreign date.
+                                selectedDateCalendar = next.clone() as Calendar
+                                selectedDateCalendar.set(Calendar.DAY_OF_MONTH, 1)
                             }
                         ) {
                             Icon(Icons.Default.ChevronRight, contentDescription = "Next Month")
@@ -405,12 +465,15 @@ fun CalendarScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Calendar Grid
+                    // Calendar Grid — height adapts to the month: some months
+                    // need 6 rows (31 days starting on Friday/Saturday), and a
+                    // fixed height clips the bottom row.
+                    val gridRows = (displayDays.size + 6) / 7
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(7),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(230.dp),
+                            .height((gridRows * 38).dp),
                         userScrollEnabled = false
                     ) {
                         items(displayDays) { calDay ->
@@ -421,27 +484,20 @@ fun CalendarScreen(
                                 val isSelected = dateStr == selectedDateStr
                                 val isToday = dateStr == todayStr
 
-                                val cardCountForDay = allCards.count { card ->
-                                    val cCal = Calendar.getInstance().apply { timeInMillis = card.nextReviewDate }
-                                    dayFormat.format(cCal.time) == dateStr
-                                }
-
-                                val hasSessionForDay = scheduledSessions.any { session ->
-                                    val sCal = Calendar.getInstance().apply { timeInMillis = session.dateInMillis }
-                                    dayFormat.format(sCal.time) == dateStr
-                                }
+                                val cardCountForDay = cardCountByDay[dateStr] ?: 0
+                                val hasSessionForDay = (sessionCountByDay[dateStr] ?: 0) > 0
 
                                 val cellBg = when {
                                     isSelected -> MaterialTheme.colorScheme.primary
-                                    cardCountForDay >= 5 -> SagePrimary.copy(alpha = 0.85f)
-                                    cardCountForDay >= 1 -> SagePrimaryContainer
+                                    cardCountForDay >= 5 -> adaptiveMasteryAccent().copy(alpha = 0.85f)
+                                    cardCountForDay >= 1 -> adaptiveContainer(SagePrimaryContainer, SagePrimaryContainerDark)
                                     else -> Color.Transparent
                                 }
 
                                 val textColor = when {
-                                    isSelected -> Color.White
-                                    cardCountForDay >= 5 -> Color.White
-                                    cardCountForDay >= 1 -> SagePrimary
+                                    isSelected -> MaterialTheme.colorScheme.onPrimary
+                                    cardCountForDay >= 5 -> MaterialTheme.colorScheme.onPrimaryContainer
+                                    cardCountForDay >= 1 -> MaterialTheme.colorScheme.onPrimaryContainer
                                     else -> MaterialTheme.colorScheme.onSurface
                                 }
 
@@ -475,7 +531,7 @@ fun CalendarScreen(
                                                 modifier = Modifier
                                                     .size(4.dp)
                                                     .clip(CircleShape)
-                                                    .background(if (isSelected || cardCountForDay >= 5) Color.White else TerracottaSecondary)
+                                                    .background(if (isSelected || cardCountForDay >= 5) MaterialTheme.colorScheme.onPrimary else adaptiveSecondaryAccent())
                                             )
                                         }
                                     }
@@ -494,18 +550,31 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = displayDateFormat.format(selectedDateCalendar.time),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = displayDateFormat.format(selectedDateCalendar.time),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
 
-                Text(
-                    text = "${cardsForSelectedDate.size} Cards • ${sessionsForSelectedDate.size} Sessions",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    Text(
+                        text = "${cardsForSelectedDate.size} Cards • ${sessionsForSelectedDate.size} Sessions",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                TextButton(onClick = { showScheduleDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Schedule", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
 
@@ -519,7 +588,7 @@ fun CalendarScreen(
                     Icon(
                         imageVector = Icons.Default.Schedule,
                         contentDescription = null,
-                        tint = TerracottaSecondary,
+                        tint = adaptiveSecondaryAccent(),
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
@@ -552,7 +621,7 @@ fun CalendarScreen(
                             TextButton(
                                 onClick = { showScheduleDialog = true }
                             ) {
-                                Text("+ Add", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TerracottaSecondary)
+                                Text("+ Add", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = adaptiveSecondaryAccent())
                             }
                         }
                     }
@@ -575,10 +644,10 @@ fun CalendarScreen(
                                 ) {
                                     Checkbox(
                                         checked = session.isCompleted,
-                                        onCheckedChange = { viewModel.toggleSessionCompleted(session.id) },
+                                        onCheckedChange = { onToggleSession(session.id) },
                                         colors = CheckboxDefaults.colors(
-                                            checkedColor = ForestMastery,
-                                            uncheckedColor = TerracottaSecondary
+                                            checkedColor = adaptiveMasteryAccent(),
+                                            uncheckedColor = adaptiveSecondaryAccent()
                                         )
                                     )
 
@@ -608,19 +677,19 @@ fun CalendarScreen(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(TerracottaSecondaryContainer)
+                                            .background(adaptiveContainer(TerracottaSecondaryContainer, TerracottaSecondaryContainerDark))
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
                                             text = "${session.durationMinutes} min",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = TerracottaSecondary
+                                            color = adaptiveSecondaryAccent()
                                         )
                                     }
 
                                     IconButton(
-                                        onClick = { viewModel.deleteScheduledSession(session.id) }
+                                        onClick = { onDeleteSession(session.id) }
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
@@ -743,14 +812,14 @@ fun CalendarScreen(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(SagePrimaryContainer)
+                                            .background(adaptiveContainer(SagePrimaryContainer, SagePrimaryContainerDark))
                                             .padding(horizontal = 10.dp, vertical = 6.dp)
                                     ) {
                                         Text(
                                             text = "Box ${card.boxLevel}",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = SagePrimary
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                     }
                                 }
@@ -768,7 +837,7 @@ fun CalendarScreen(
 
     // Interactive Schedule Study Session Dialog
     if (showScheduleDialog) {
-        var selectedDeckId by remember { mutableStateOf(decks.firstOrNull()?.id ?: 1L) }
+        var selectedDeckId by remember { mutableStateOf(decks.firstOrNull()?.id ?: 0L) }
         var selectedDeckTitle by remember { mutableStateOf(decks.firstOrNull()?.title ?: "General Review") }
         var selectedDuration by remember { mutableIntStateOf(30) }
         var focusTopicText by remember { mutableStateOf("") }
@@ -889,15 +958,16 @@ fun CalendarScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.addScheduledSession(
-                            deckId = selectedDeckId,
-                            deckTitle = selectedDeckTitle,
-                            dateInMillis = selectedDateCalendar.timeInMillis,
-                            durationMinutes = selectedDuration,
-                            focusTopic = focusTopicText.ifBlank { "Spaced repetition practice" }
+                        onAddSession(
+                            selectedDeckId,
+                            selectedDeckTitle,
+                            selectedDateCalendar.timeInMillis,
+                            selectedDuration,
+                            focusTopicText.ifBlank { "Spaced repetition practice" }
                         )
                         showScheduleDialog = false
                     },
+                    enabled = selectedDeckId > 0,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     shape = RoundedCornerShape(10.dp)
                 ) {

@@ -631,7 +631,7 @@ private fun FolderChip(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp)
             )
             Spacer(modifier = Modifier.width(5.dp))
@@ -639,7 +639,7 @@ private fun FolderChip(
                 text = label,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
             )
         }
     }

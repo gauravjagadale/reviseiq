@@ -70,7 +70,7 @@ fun CustomBarChart(
                     Text(
                         text = "No study activity logged yet",
                         fontSize = 13.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {

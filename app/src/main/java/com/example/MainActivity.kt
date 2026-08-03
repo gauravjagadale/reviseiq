@@ -1,5 +1,6 @@
 package com.example
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -54,6 +55,8 @@ import com.example.ui.screens.StatisticsScreen
 import com.example.ui.theme.ReviseIQTheme
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -118,6 +121,24 @@ class MainActivity : ComponentActivity() {
             ReviseIQTheme(darkTheme = isDarkMode) {
                 val navController = rememberNavController()
                 val context = LocalContext.current
+
+                // Ask for notification permission once, on first launch, so
+                // study reminders work out of the box (Android 13+).
+                val prefs = remember {
+                    context.getSharedPreferences("reviseiq_prefs", android.content.Context.MODE_PRIVATE)
+                }
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) {}
+                LaunchedEffect(Unit) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        prefs.getBoolean("key_notification_permission_prompted", false).not() &&
+                        !StudyNotificationScheduler.hasNotificationPermission(context)
+                    ) {
+                        prefs.edit().putBoolean("key_notification_permission_prompted", true).apply()
+                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
 
                 // Pomodoro survives the background: arm the completion alarm on
                 // stop, finalize any finished session + cancel stale alarms on resume.
